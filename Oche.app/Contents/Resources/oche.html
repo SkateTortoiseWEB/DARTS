@@ -505,7 +505,7 @@ dialog#setup::backdrop{background:rgba(30,4,10,.72);-webkit-backdrop-filter:blur
       <label class="toggle"><input type="checkbox" id="camAuto" checked>Score darts automatically</label>
       <label class="toggle"><input type="checkbox" id="camAutoNext" checked>Next player when the darts are pulled out</label>
       <label class="noise">Sensitivity <input type="range" id="camSens" min="8" max="60" step="1" value="24"><output id="camSensOut">24</output></label>
-      <label class="toggle">Tip position <select id="camTip" class="mini-select"><option value="centre">Centre of the change (pins)</option><option value="lowest">Lowest point (angled darts)</option></select></label>
+      <label class="toggle">Tip position <select id="camTip" class="mini-select"><option value="centre">Centre (magnets, pins)</option><option value="lowest">Lowest point (angled darts)</option></select></label>
     </div>
   </details>
 
@@ -646,7 +646,7 @@ dialog#setup::backdrop{background:rgba(30,4,10,.72);-webkit-backdrop-filter:blur
 <div class="toast" id="toast" role="status"></div>
 
 <script>
-const OCHE_VERSION='1.8';
+const OCHE_VERSION='1.9';
 /* ============ Board geometry (mm, from board centre) ============ */
 const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const R={bullIn:6.35,bullOut:15.9,trebIn:99,trebOut:107,dblIn:162,dblOut:170};
@@ -1471,7 +1471,7 @@ const CAL_TARGETS=[{label:'the centre of the bull',x:0,y:0},{label:'the outer ed
   {label:'the outer edge of the double ring in the middle of 11',x:-170,y:0}];
 const CAM={roi:{x:0,y:0,w:1,h:1},mpp:1,hist:[],stream:null,video:$('#camVideo'),running:false,points:[],H:null,Hinv:null,gw:320,gh:180,
   ref:null,base:null,prev:null,lastMotion:0,sawMotion:false,mask:null,maskCount:1,timer:null,calibrating:false,drag:-1,
-  lastHit:null,lastDiff:null,status:'',opts:{auto:true,autoNext:true,sens:24,tip:'centre',device:'',enabled:false}};
+  lastHit:null,lastDiff:null,lastCheck:0,status:'',opts:{auto:true,autoNext:true,sens:24,tip:'centre',device:'',enabled:false}};
 try{const c=JSON.parse(localStorage.getItem('oche-cam')||'null');if(c){if(Array.isArray(c.points))CAM.points=c.points;Object.assign(CAM.opts,c.opts||{});}}catch(e){}
 function camSave(){try{localStorage.setItem('oche-cam',JSON.stringify({points:CAM.points,opts:CAM.opts}));}catch(e){}}
 
@@ -1603,11 +1603,23 @@ function camOpen(bin){
   for(let i=0;i<e.length;i++)if(e[i]){o[i]=o[i-1]=o[i+1]=o[i-gw]=o[i+gw]=1;}
   return o;
 }
+// Changed pixels between two frames. Pixels that clearly changed (above the sensitivity) are the seeds;
+// the area then grows into faintly changed neighbours, so a dark magnet sitting partly on black print
+// comes out whole instead of as the bits that happen to lie over white.
 function camDiffMask(a,b){
+  const t=CAM.opts.sens,lo=Math.max(6,t*.4),m=CAM.mask,n=m.length,gw=CAM.gw,off=camOffsets(a,b),raw=new Uint8Array(n),weak=new Uint8Array(n);
+  for(let i=0;i<n;i++){if(!m[i])continue;const v=camPx(a,b,i,off);if(v>lo){weak[i]=1;if(v>t)raw[i]=1;}}
+  const bin=camOpen(raw),stack=[];let count=0;
+  for(let i=0;i<n;i++)if(bin[i]){stack.push(i);count++;}
+  while(stack.length){const k=stack.pop();for(const q of [k-1,k+1,k-gw,k+gw])if(weak[q]&&!bin[q]){bin[q]=1;count++;stack.push(q);}}
+  return {bin,count,off};
+}
+// clear changes only (no growing): used to tell whether anything is moving
+function camMotion(a,b){
   const t=CAM.opts.sens,m=CAM.mask,raw=new Uint8Array(m.length),off=camOffsets(a,b);
   for(let i=0;i<m.length;i++)if(m[i]&&camPx(a,b,i,off)>t)raw[i]=1;
   const bin=camOpen(raw);let n=0;for(let i=0;i<bin.length;i++)n+=bin[i];
-  return {bin,count:n,off};
+  return n;
 }
 function camBlobs(bin){
   const {gw,gh}=CAM,seen=new Uint8Array(bin.length),blobs=[],stack=[];
@@ -1620,15 +1632,76 @@ function camBlobs(bin){
   }
   return blobs.sort((a,b)=>b.length-a.length);
 }
-function camTipOf(px){
+// Group the changed pixels into objects, joining pieces less than CAM_JOIN_MM apart
+// (one magnet over black-and-white print often shows up as a few separate pieces).
+const CAM_JOIN_MM=6;
+function camObjects(bin){
+  const {gw,gh}=CAM,n=bin.length,r=Math.max(1,Math.round(CAM_JOIN_MM/2/CAM.mpp)),h=new Uint8Array(n),grown=new Uint8Array(n);
+  for(let y=0;y<gh;y++){const o=y*gw;
+    for(let x=0,last=-1e9;x<gw;x++){if(bin[o+x])last=x;if(x-last<=r)h[o+x]=1;}
+    for(let x=gw-1,last=1e9;x>=0;x--){if(bin[o+x])last=x;if(last-x<=r)h[o+x]=1;}}
+  for(let x=0;x<gw;x++){
+    for(let y=0,last=-1e9;y<gh;y++){if(h[y*gw+x])last=y;if(y-last<=r)grown[y*gw+x]=1;}
+    for(let y=gh-1,last=1e9;y>=0;y--){if(h[y*gw+x])last=y;if(last-y<=r)grown[y*gw+x]=1;}}
+  return camBlobs(grown).map(g=>g.filter(k=>bin[k])).filter(g=>g.length).sort((a,b)=>b.length-a.length);
+}
+// Where each dart or magnet in a changed area is, as analysis-grid points (usually one; touching magnets give more)
+function camTipsOf(px,g,ref){
   const {gw}=CAM;
   if(CAM.opts.tip==='lowest'){
     let maxY=-1;for(const k of px)maxY=Math.max(maxY,(k/gw)|0);
     const row=px.filter(k=>((k/gw)|0)>=maxY-1);const sx=row.reduce((a,k)=>a+k%gw,0)/row.length;
-    return camG2N(sx,maxY);
+    return [[sx,maxY]];
   }
+  const fit=camFitDiscs(px,g,ref);if(fit.length)return fit;
   let sx=0,sy=0;for(const k of px){sx+=k%gw;sy+=(k/gw)|0;}
-  return camG2N(sx/px.length,sy/px.length);
+  return [[sx/px.length,sy/px.length]];
+}
+// Where is the middle of a round magnet? The plain centre of the changed pixels is dragged towards its shadow,
+// and towards whichever part lies over white (on black print a black magnet barely changes the picture).
+// So: learn the magnet's colour from its most-changed pixels, mark each nearby pixel as "looks like the magnet"
+// (+1) or "clearly not" (-1), ignore pixels where the empty board already looks like the magnet (no evidence
+// either way), and find the disc that best covers the +1s without covering -1s. If plenty of +1s are left
+// outside it, two or three magnets are touching: look for another disc.
+function camFitDiscs(px,g,ref){
+  const {gw,gh}=CAM,t=CAM.opts.sens,off=camOffsets(g,ref);
+  const vs=px.map(k=>[camPx(g,ref,k,off),k]).sort((a,b)=>b[0]-a[0]).slice(0,Math.max(3,Math.ceil(px.length*.3)));
+  const mag=[0,1,2].map(c=>{const a=vs.map(([,k])=>g[k*3+c]).sort((x,y)=>x-y);return a[a.length>>1];});
+  const dist=(a,k,o)=>Math.max(Math.abs(a[k*3]-o[0]),Math.abs(a[k*3+1]-o[1]),Math.abs(a[k*3+2]-o[2]));
+  const rMin=Math.max(2,Math.round(3/CAM.mpp)),rMax=Math.max(rMin+1,Math.round(15/CAM.mpp));
+  let x0=gw,y0=gh,x1=0,y1=0;for(const k of px){const x=k%gw,y=(k/gw)|0;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+  const wx0=Math.max(0,x0-rMax),wy0=Math.max(0,y0-rMax),wx1=Math.min(gw-1,x1+rMax),wy1=Math.min(gh-1,y1+rMax);
+  const ww=wx1-wx0+1,wh=wy1-wy0+1,ev=new Int8Array(ww*wh),pre=new Float32Array(wh*(ww+1));
+  let pos=0;
+  for(let y=0;y<wh;y++)for(let x=0;x<ww;x++){
+    const k=(y+wy0)*gw+x+wx0;if(!CAM.mask[k])continue;
+    const rk=[ref[k*3]+off[0],ref[k*3+1]+off[1],ref[k*3+2]+off[2]];
+    if(Math.max(Math.abs(rk[0]-mag[0]),Math.abs(rk[1]-mag[1]),Math.abs(rk[2]-mag[2]))<=2*t)continue;   // a magnet here wouldn't show
+    ev[y*ww+x]=dist(g,k,mag)<dist(g,k,rk)?1:-1;if(ev[y*ww+x]>0)pos++;
+  }
+  const spans=[];for(let r=0;r<=rMax;r++){const sp=[];for(let dy=-r;dy<=r;dy++)sp.push([dy,Math.floor(Math.sqrt(r*r-dy*dy))]);spans.push(sp);}
+  const out=[];
+  while(out.length<3&&pos>=3){
+    for(let y=0;y<wh;y++)for(let x=0;x<ww;x++)pre[y*(ww+1)+x+1]=pre[y*(ww+1)+x]+ev[y*ww+x];
+    let best=-Infinity,bx=0,by=0,n=0,br=0;
+    for(let r=rMin;r<=rMax;r++){
+      const span=spans[r];
+      for(let cy=Math.max(0,y0-r)-wy0;cy<=Math.min(gh-1,y1+r)-wy0;cy++)for(let cx=Math.max(0,x0-r)-wx0;cx<=Math.min(gw-1,x1+r)-wx0;cx++){
+        let s=-.25*r;   // slight preference for the smaller disc when the evidence can't tell
+        for(const [dy,hw] of span){const y=cy+dy;if(y<0||y>=wh)continue;const a=Math.max(0,cx-hw),b=Math.min(ww-1,cx+hw);if(a<=b)s+=pre[y*(ww+1)+b+1]-pre[y*(ww+1)+a];}
+        if(s>best+1e-6){best=s;bx=cx;by=cy;n=1;br=r;}
+        else if(Math.abs(s-best)<=1e-6){bx+=cx;by+=cy;n++;}   // ties: average them
+      }
+    }
+    // the first disc needs some support; any further one needs a good share of a disc's worth of magnet pixels
+    const r0=out.length?out[0][2]:br;
+    if(best<=(out.length?.35*Math.PI*r0*r0:0))break;
+    const cx=bx/n,cy=by/n;out.push([cx+wx0,cy+wy0,br]);
+    // take this magnet's pixels out of the evidence (neutral, so a neighbour may overlap its edge)
+    pos=0;
+    for(let y=0;y<wh;y++)for(let x=0;x<ww;x++){const i=y*ww+x;if(Math.hypot(x-cx,y-cy)<=br+1)ev[i]=0;else if(ev[i]>0)pos++;}
+  }
+  return out.map(([x,y])=>[x,y]);
 }
 function camTick(){
   const v=CAM.video;if(!CAM.running||!v.videoWidth||document.hidden)return;
@@ -1636,48 +1709,77 @@ function camTick(){
   const g=camGrab(),now=performance.now();
   CAM.hist.push(g);if(CAM.hist.length>5)CAM.hist.shift();
   if(!CAM.prev){CAM.prev=g;return;}
-  // motion between consecutive frames, ignoring whole-picture brightness shifts
-  const off=camOffsets(g,CAM.prev),t=CAM.opts.sens;let moving=0;
-  for(let i=0;i<CAM.mask.length;i+=2)if(CAM.mask[i]&&camPx(g,CAM.prev,i,off)>t)moving++;
+  // motion between consecutive frames: anything the size of a small dart tip counts, noise speckles don't
+  const moving=camMotion(g,CAM.prev);
   CAM.prev=g;
-  if(moving*2>CAM.maskCount*.002){CAM.lastMotion=now;CAM.sawMotion=true;}
+  if(moving>camMinArea()/2){CAM.lastMotion=now;CAM.sawMotion=true;}
   // "still" = no movement for a moment AND the webcam has finished re-adjusting its exposure
   const settle=CAM.hist.length>=4?camOffsets(g,CAM.hist[CAM.hist.length-4]):[99,0,0];
   const still=now-CAM.lastMotion>800&&Math.max(...settle.map(Math.abs))<=2;
-  if(still&&!CAM.ref&&CAM.hist.length>=3){CAM.ref=camMedian3(CAM.hist);if(!CAM.base)CAM.base=CAM.ref;}
-  if(still&&CAM.sawMotion&&CAM.ref&&CAM.H){CAM.sawMotion=false;camAnalyse(camMedian3(CAM.hist));}
+  if(still&&!CAM.ref&&CAM.hist.length>=3){CAM.ref=camMedian3(CAM.hist);if(!CAM.base)CAM.base=CAM.ref;CAM.seenAt=null;}
+  camStampChanges(g,now);
+  // look after every movement, and every half second anyway: a small dart can land without the motion
+  // check noticing, but it still differs from the last still picture
+  if(still&&CAM.ref&&CAM.H&&(CAM.sawMotion||now-CAM.lastCheck>500)){CAM.sawMotion=false;CAM.lastCheck=now;camAnalyse(camMedian3(CAM.hist));}
   camDrawMini();
   if(!$('#camView').hidden)camDrawOverlay();
 }
+// remember when each pixel first changed from the last still picture, so darts that land between two looks
+// can still be scored in the order they were thrown
+function camStampChanges(g,now){
+  if(!CAM.ref)return;
+  const n=CAM.mask.length;if(!CAM.seenAt||CAM.seenAt.length!==n)CAM.seenAt=new Float64Array(n);
+  const st=CAM.seenAt,t=CAM.opts.sens,off=camOffsets(g,CAM.ref);
+  for(let i=0;i<n;i++)if(CAM.mask[i]&&!st[i]&&camPx(g,CAM.ref,i,off)>t)st[i]=now;
+}
+function camWhen(o){
+  const st=CAM.seenAt;if(!st)return 0;
+  const a=o.map(k=>st[k]).filter(Boolean).sort((x,y)=>x-y);return a.length?a[a.length>>1]:Infinity;
+}
+function camMinArea(){return Math.max(6,Math.PI*Math.pow(2/CAM.mpp,2));}   // 4 mm across
 function camAnalyse(g){
-  const mpp=CAM.mpp,minArea=Math.max(6,Math.PI*Math.pow(2.5/mpp,2)),maxArea=Math.PI*Math.pow(50/mpp,2);
-  const d=camDiffMask(g,CAM.ref);CAM.lastDiff=d.bin;
-  if(d.count>CAM.maskCount*.3){CAM.ref=CAM.base=g;camSetStatus('Big change (camera moved or lights changed), so I re-learnt the empty board.');return;}
-  const blob=camBlobs(d.bin)[0];
+  const mpp=CAM.mpp,minArea=camMinArea(),maxArea=Math.PI*Math.pow(50/mpp,2);
+  const ref=CAM.ref,d=camDiffMask(g,ref);CAM.lastDiff=d.bin;
+  if(d.count>CAM.maskCount*.3){CAM.ref=CAM.base=g;CAM.seenAt=null;camSetStatus('Big change (camera moved or lights changed), so I re-learnt the empty board.');return;}
+  const objs=camObjects(d.bin).filter(o=>o.length>=minArea);
   const emptyNow=camDiffMask(g,CAM.base).count<minArea;
-  if(!blob||blob.length<minArea){
-    CAM.ref=g;
+  if(!objs.length){
+    CAM.ref=g;CAM.seenAt=null;
     if(emptyNow)CAM.base=g;   // follow slow lighting drift
     return;
   }
-  if(blob.length>maxArea){camSetStatus('Something big is in front of the board (a hand?). Waiting for it to move.');CAM.sawMotion=true;return;}
-  // pulled out (the changed area now matches the empty board) or a new dart?
-  const t=CAM.opts.sens,off=camOffsets(g,CAM.base);let back=0;for(const k of blob)if(camPx(g,CAM.base,k,off)<=t)back++;
+  if(objs[0].length>maxArea){camSetStatus('Something big is in front of the board (a hand?). Waiting for it to move.');CAM.sawMotion=true;CAM.seenAt=null;return;}
+  // each change is either a dart pulled out (it now matches the empty board) or a new dart
+  const t=CAM.opts.sens,off=camOffsets(g,CAM.base);
+  const added=objs.filter(o=>{let back=0;for(const k of o)if(camPx(g,CAM.base,k,off)<=t)back++;return back/o.length<=.7;});
   CAM.ref=g;
-  if(back/blob.length>.7){
-    if(emptyNow){CAM.base=g;camSetStatus('Darts pulled out, board empty.');
-      if(S&&S.awaiting&&S.winner===null&&CAM.opts.autoNext)next();}
+  if(!added.length){
+    CAM.seenAt=null;
+    if(emptyNow){CAM.base=g;camBoardCleared();}
     return;
   }
-  const [nx,ny]=camTipOf(blob),[bx,by]=hApply(CAM.H,nx,ny);
-  CAM.lastHit={nx,ny,bx,by,label:scoreAt(bx,by).label};
-  if(!CAM.opts.auto){camSetStatus(`Saw a dart at ${CAM.lastHit.label} (automatic scoring is off).`);return;}
-  if(!S||S.winner!==null){camSetStatus(`Saw a dart at ${CAM.lastHit.label}, but no game is running.`);return;}
-  if(S.awaiting){camSetStatus(`Saw a dart at ${CAM.lastHit.label}, but this turn is finished. Pull the darts out first.`);return;}
-  camSetStatus(`Scored ${CAM.lastHit.label}.`);
-  registerDart(bx,by);
+  added.sort((a,b)=>camWhen(a)-camWhen(b));
+  CAM.seenAt=null;
+  const hits=added.flatMap(o=>camTipsOf(o,g,ref).map(([x,y])=>{const [nx,ny]=camG2N(x,y),[bx,by]=hApply(CAM.H,nx,ny);return {nx,ny,bx,by,label:scoreAt(bx,by).label};}));
+  CAM.lastHit=hits[hits.length-1];
+  const labels=hits.map(h=>h.label).join(', ');
+  if(!CAM.opts.auto){camSetStatus(`Saw ${labels} (automatic scoring is off).`);return;}
+  if(!S||S.winner!==null){camSetStatus(`Saw ${labels}, but no game is running.`);return;}
+  if(S.awaiting){camSetStatus(`Saw ${labels}, but this turn is finished. Pull the darts out first.`);return;}
+  const scored=[];
+  for(const h of hits){if(S.awaiting||S.winner!==null)break;registerDart(h.bx,h.by);scored.push(h.label);}
+  camSetStatus(`Scored ${scored.join(', ')}.`+(scored.length<hits.length?' Ignored the rest: the turn was over.':''));
 }
-
+// the board is empty again: move on to the next player, counting any darts the camera never saw as misses
+// (they bounced out, fell off, or weren't spotted; Undo fixes the last case)
+function camBoardCleared(){
+  if(!(S&&S.winner===null&&CAM.opts.autoNext)){camSetStatus('Darts pulled out, board empty.');return;}
+  const thrown=S.turn.darts.length;
+  if(!S.awaiting&&thrown>0){while(!S.awaiting&&S.winner===null)applyThrow({value:0,label:'Miss',isDouble:false,x:null,y:null});
+    camSetStatus(`Darts pulled out. Only saw ${thrown} of 3, so the rest count as misses.`);}
+  else camSetStatus('Darts pulled out, board empty.');
+  if(S.awaiting&&S.winner===null)next();
+}
 // ---- drawing ----
 function camProjectRing(ctx,r,w,h){
   ctx.beginPath();
@@ -1740,7 +1842,7 @@ $('#camOverlay').addEventListener('pointerdown',e=>{
 $('#camOverlay').addEventListener('pointermove',e=>{if(CAM.drag<0)return;CAM.points[CAM.drag]=camEventPoint(e);camComputeH();camDrawOverlay();});
 $('#camOverlay').addEventListener('pointerup',()=>{if(CAM.drag<0)return;CAM.drag=-1;camComputeH();camBuildMask();camSave();camDrawOverlay();});
 $('#camCal').onclick=()=>{if(!CAM.running){toast('Start the camera first');return;}CAM.points=[];CAM.calibrating=true;CAM.H=CAM.Hinv=null;CAM.lastHit=null;camUpdateHelp();camDrawOverlay();};
-$('#camRef').onclick=()=>{CAM.ref=CAM.base=camMedian3(CAM.hist);CAM.lastHit=null;toast('Got it, that\u2019s the empty board');};
+$('#camRef').onclick=()=>{CAM.ref=CAM.base=camMedian3(CAM.hist);CAM.seenAt=null;CAM.lastHit=null;toast('Got it, that\u2019s the empty board');};
 $('#camOpen').onclick=()=>{$('#camView').hidden=false;setDev(false);camUpdateHelp();requestAnimationFrame(camDrawOverlay);};
 $('#camClose').onclick=()=>{if(REC.rec){toast('Stop the recording first');return;}$('#camView').hidden=true;CAM.calibrating=false;};
 
