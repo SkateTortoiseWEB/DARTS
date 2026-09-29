@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Board mapping practice</title>
 <style>
+.ringrow{display:grid;grid-template-columns:18px 1fr auto;gap:6px;align-items:center;padding:4px 6px;border-radius:8px;cursor:pointer}
+.ringrow[aria-selected="true"]{background:#2f3b36;outline:1px solid var(--accent)}
+.ringrow small{color:var(--muted)}
 :root{--bg:#1d2623;--panel:#26312d;--line:#3a4742;--text:#ecebe4;--muted:#a3aca6;--accent:#3fae6a;--pink:#ff2d95;--gold:#d9b45a}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -14,6 +17,7 @@ body{background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-syst
 #drop{position:absolute;inset:24px;border:2px dashed var(--line);border-radius:14px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:24px}
 #drop[hidden]{display:none}
 #drop b{color:var(--text);font-size:20px;display:block;margin-bottom:6px}
+aside>*{flex-shrink:0}
 aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 h1{font-size:20px;margin:0}
 h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
@@ -53,7 +57,8 @@ kbd{background:#1d2623;border:1px solid var(--line);border-radius:4px;padding:0 
   </div>
   <div class="seg" role="group" aria-label="Mode">
     <button type="button" id="modeCal" aria-pressed="true">1. Calibrate</button>
-    <button type="button" id="modeScore" aria-pressed="false">2. Score</button>
+    <button type="button" id="modeRings" aria-pressed="false">2. Rings</button>
+    <button type="button" id="modeScore" aria-pressed="false">3. Score</button>
   </div>
   <div id="task"></div>
   <div id="resBox" hidden>
@@ -75,6 +80,16 @@ kbd{background:#1d2623;border:1px solid var(--line);border-radius:4px;padding:0 
     <h2>Clicked darts</h2>
     <table id="hits"><tr><th>#</th><th>Score</th><th>x mm</th><th>y mm</th><th>from centre</th></tr></table>
   </div>
+  <div>
+    <h2>Save the mapping</h2>
+    <div class="row">
+      <button class="btn primary" type="button" id="exportBtn" disabled>Save mapping</button>
+      <button class="btn" type="button" id="copyBtn" disabled>Copy as JSON</button>
+      <button class="btn" type="button" id="importBtn">Open mapping</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="muted">Saves a .json file with the mapping both ways (photo pixels to board mm and back), the clicked points and the ring sizes, for use in a project. Open it again later with the same photo.</p>
+  </div>
   <div class="row">
     <button class="btn" type="button" id="undo">Undo last point</button>
     <button class="btn" type="button" id="reset">Start again</button>
@@ -83,7 +98,16 @@ kbd{background:#1d2623;border:1px solid var(--line);border-radius:4px;padding:0 
 </aside>
 <script>
 /* ---------- board geometry (millimetres, x right, y down, 20 at the top) ---------- */
-const R={bullIn:6.35,bullOut:15.9,trebIn:99,trebOut:107,dblIn:162,dblOut:170};
+const STD={bullIn:6.35,bullOut:15.9,trebIn:99,trebOut:107,dblIn:162,dblOut:170};   // standard board, wire centres
+const R={...STD};   // the rings actually in use (changed in step 2)
+const RINGS=[
+  {k:'bullIn',name:'Bull (50) edge',hint:'the wire around the inner bull'},
+  {k:'bullOut',name:'25 ring outer edge',hint:'the wire around the outer bull'},
+  {k:'trebIn',name:'Treble inner edge',hint:'the wire on the inside of the treble ring'},
+  {k:'trebOut',name:'Treble outer edge',hint:'the wire on the outside of the treble ring'},
+  {k:'dblIn',name:'Double inner edge',hint:'the wire on the inside of the double ring'},
+  {k:'dblOut',name:'Double outer edge (check only)',hint:'the wire on the outside of the double ring',check:true},
+];
 const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const polar=(r,deg)=>[r*Math.sin(deg*Math.PI/180),-r*Math.cos(deg*Math.PI/180)];
 // wire between segment i and i+1 (clockwise) is at i*18+9 degrees
@@ -136,12 +160,16 @@ function invert(m){const [a,b,c,d,e,f,g,h,i]=m,A=e*i-f*h,B=-(d*i-f*g),C=d*h-e*g,
 
 /* ---------- state ---------- */
 const $=s=>document.querySelector(s),cv=$('#cv'),ctx=cv.getContext('2d'),img=new Image();
-let loaded=false,mode='cal',pts=[],H=null,Hi=null,hits=[],view={s:1,x:0,y:0},mouse=null,drag=null,jitter=0,jitterMaps=[];
+let loaded=false,imgName='',ringSel='trebIn',ringClicks={},mode='cal',pts=[],H=null,Hi=null,hits=[],view={s:1,x:0,y:0},mouse=null,drag=null,jitter=0,jitterMaps=[];
 function recompute(){
   H=Hi=null;
   if(pts.length>=4){H=homography(pts.map(p=>p.px),pts.map(p=>TARGETS[p.t].p));Hi=H&&invert(H);}
-  makeJitter();renderSide();draw();
+  updateRings();makeJitter();renderSide();draw();
 }
+// each ring's radius = the median distance from the centre of the points clicked on it (through the current map)
+const median=a=>{const b=a.slice().sort((x,y)=>x-y);return b.length?(b.length%2?b[b.length>>1]:(b[b.length/2-1]+b[b.length/2])/2):NaN;};
+function ringRadii(k){return H?(ringClicks[k]||[]).map(px=>Math.hypot(...apply(H,...px))):[];}
+function updateRings(){for(const r of RINGS)if(!r.check){const m=median(ringRadii(r.k));R[r.k]=Number.isFinite(m)?m:STD[r.k];}}
 function makeJitter(){
   jitterMaps=[];if(!jitter||pts.length<4)return;
   for(let n=0;n<30;n++){const h=homography(pts.map(p=>[p.px[0]+(Math.random()*2-1)*jitter,p.px[1]+(Math.random()*2-1)*jitter]),pts.map(p=>TARGETS[p.t].p));const hi=h&&invert(h);if(hi)jitterMaps.push(hi);}
@@ -169,12 +197,18 @@ function draw(){
   ctx.drawImage(img,view.x,view.y,img.naturalWidth*view.s,img.naturalHeight*view.s);
   for(const m of jitterMaps)drawMap(m,'rgba(255,210,63,.18)',1,false);
   if(Hi)drawMap(Hi,'rgba(80,255,170,.95)',Math.max(1,Math.min(2,view.s*2)),true);
+  if(Hi&&mode==='rings'){
+    const rr=ringSel==='dblOut'?STD.dblOut:R[ringSel];
+    ctx.strokeStyle='rgba(0,220,255,.9)';ctx.lineWidth=3;ctx.beginPath();
+    for(let a=0;a<=360;a+=3){const [x,y]=toScreen(apply(Hi,...polar(rr,a)));a?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+    for(const r of RINGS)for(const px of ringClicks[r.k]||[]){const [x,y]=toScreen(px);ctx.fillStyle=r.k===ringSel?'#00dcff':'rgba(0,220,255,.45)';ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();ctx.stroke();}
+  }
   pts.forEach((p,i)=>{const [x,y]=toScreen(p.px);ctx.fillStyle=drag&&drag.i===i?'#fff':'#ff2d95';ctx.strokeStyle='#fff';ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='700 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i+1,x,y+.5);
     if(Hi){const [ex,ey]=toScreen(apply(Hi,...TARGETS[p.t].p));ctx.strokeStyle='#ffd23f';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(ex,ey);ctx.stroke();}});
   hits.forEach((h,i)=>{const [x,y]=toScreen(h.px);ctx.fillStyle='#ffd23f';ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,6,0,7);ctx.fill();ctx.stroke();
     ctx.font='700 14px system-ui';ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.lineWidth=3;ctx.strokeText(h.label.split(' ')[0],x+9,y-8);ctx.fillText(h.label.split(' ')[0],x+9,y-8);});
-  if(mouse&&mode==='cal'&&!drag?.pan)drawLoupe();
+  if(mouse&&mode!=='score'&&!drag?.pan)drawLoupe();
 }
 // magnifier in the corner while calibrating, so points can be placed to the pixel
 function drawLoupe(){
@@ -204,12 +238,23 @@ function renderSide(){
   const t=nextTarget(),task=$('#task');
   if(!loaded){task.innerHTML='<p>Load a photo to start.</p>';}
   else if(mode==='cal'){
-    if(t<0)task.innerHTML=`<p><b>All points placed.</b> Drag any pink point to fine-tune, then switch to <b>2. Score</b>.</p>`;
+    if(t<0)task.innerHTML=`<p><b>All points placed.</b> Drag any pink point to fine-tune, then go to <b>2. Rings</b>.</p>`;
     else task.innerHTML=`<p><b>Point ${pts.length+1}:</b> click ${TARGETS[t].text}.</p>${miniBoard(TARGETS[t].p)}
       <div class="row" style="margin-top:8px">${TARGETS[t].need?'':'<button class="btn" type="button" id="skip">Skip this one</button>'}
-      ${pts.length>=4?'<button class="btn primary" type="button" id="goScore">Done, start scoring</button>':`<span class="muted">${4-pts.length} more needed before the map appears.</span>`}</div>`;
+      ${pts.length>=4?'<button class="btn primary" type="button" id="goScore">Done, next step</button>':`<span class="muted">${4-pts.length} more needed before the map appears.</span>`}</div>`;
     $('#skip')?.addEventListener('click',()=>{skipped.add(t);renderSide();});
-    $('#goScore')?.addEventListener('click',()=>setMode('score'));
+    $('#goScore')?.addEventListener('click',()=>setMode('rings'));
+  }else if(mode==='rings'){
+    const cur=RINGS.find(r=>r.k===ringSel);
+    task.innerHTML=`<p><b>Click on ${cur.hint}</b>, in the middle of the wire, in a few places around the board (4 to 8 clicks, spread out). Pick another ring below when done.</p>`+
+      RINGS.map(r=>{const rad=ringRadii(r.k),m=median(rad),n=rad.length,spread=n>1?Math.max(...rad)-Math.min(...rad):0;
+        return `<div class="ringrow" data-k="${r.k}" aria-selected="${r.k===ringSel}"><span>${n?'\u2713':''}</span><span>${r.name}<br><small>standard ${STD[r.k]} mm${n?`, ${n} click${n>1?'s':''}${n>1?`, spread ${spread.toFixed(1)} mm`:''}`:''}</small></span>
+          <b class="${n&&Math.abs(m-STD[r.k])>2?'bad':''}">${n?m.toFixed(1)+' mm':'\u2013'}</b></div>`;}).join('')+
+      `<div class="row" style="margin-top:8px"><button class="btn" type="button" id="ringClear">Clear this ring</button><button class="btn" type="button" id="ringReset">Reset all to standard</button></div>
+      <p class="muted" style="margin:8px 0 0">The double's outer edge defines the size of the map (your calibration points were on it), so it can't be changed here. Clicking it is a check: it should come out close to 170 mm.</p>`;
+    task.querySelectorAll('.ringrow').forEach(el=>el.onclick=()=>{ringSel=el.dataset.k;renderSide();draw();});
+    $('#ringClear').onclick=()=>{delete ringClicks[ringSel];recompute();};
+    $('#ringReset').onclick=()=>{ringClicks={};recompute();};
   }else task.innerHTML=H?`<p><b>Click anywhere on the board</b> to score that spot. Hover to see the score under the cursor.</p>`:`<p>Place at least 4 calibration points first.</p>`;
   // residuals: map each clicked point through the fit and compare with where it should be on the board
   const box=$('#resBox');box.hidden=!(H&&pts.length>=4);
@@ -221,9 +266,9 @@ function renderSide(){
     $('#resNote').textContent=pts.length===4?'With exactly 4 points the map always passes through all of them, so this shows 0 even if a click is off. Add a 5th or more to see how well your clicks agree.'
       :worst>1.5?'At least one point disagrees with the others by over 1.5 mm. Zoom in and drag it (the yellow line shows where the map thinks it belongs).':'Your points agree well. Under 1 mm is very good.';
   }
-  $('#modeScore').disabled=!H;
+  $('#modeScore').disabled=$('#modeRings').disabled=$('#exportBtn').disabled=$('#copyBtn').disabled=!H;
 }
-function setMode(m){mode=m;$('#modeCal').setAttribute('aria-pressed',m==='cal');$('#modeScore').setAttribute('aria-pressed',m==='score');renderSide();draw();}
+function setMode(m){mode=m;for(const [id,k] of [['#modeCal','cal'],['#modeRings','rings'],['#modeScore','score']])$(id).setAttribute('aria-pressed',m===k);renderSide();draw();}
 function addHit(px){
   const [bx,by]=apply(H,...px),label=scoreAt(bx,by);hits.push({px,label});
   const tr=document.createElement('tr');tr.innerHTML=`<td>${hits.length}</td><td><b>${label}</b></td><td>${bx.toFixed(1)}</td><td>${by.toFixed(1)}</td><td>${Math.hypot(bx,by).toFixed(1)} mm</td>`;
@@ -249,6 +294,7 @@ cv.addEventListener('pointerup',e=>{
   if(d.i!==undefined){recompute();return;}
   if(!d.pan){const px=toImage(...evPos(e));
     if(mode==='cal'){const t=nextTarget();if(t>=0){pts.push({t,px});recompute();}}
+    else if(mode==='rings'&&H){(ringClicks[ringSel]=ringClicks[ringSel]||[]).push(px);recompute();}
     else if(H)addHit(px);}
   draw();
 });
@@ -259,8 +305,10 @@ cv.addEventListener('wheel',e=>{
 },{passive:false});
 $('#modeCal').onclick=()=>setMode('cal');
 $('#modeScore').onclick=()=>{if(H)setMode('score');};
-$('#undo').onclick=()=>{if(mode==='score'&&hits.length){hits.pop();$('#hits').lastElementChild.remove();draw();}else{pts.pop();recompute();}};
-$('#reset').onclick=()=>{pts=[];hits=[];skipped=new Set();$('#hits').innerHTML='<tr><th>#</th><th>Score</th><th>x mm</th><th>y mm</th><th>from centre</th></tr>';setMode('cal');recompute();};
+$('#modeRings').onclick=()=>{if(H)setMode('rings');};
+$('#undo').onclick=()=>{if(mode==='score'&&hits.length){hits.pop();$('#hits').lastElementChild.remove();draw();}
+  else if(mode==='rings'){ringClicks[ringSel]?.pop();recompute();}else{pts.pop();recompute();}};
+$('#reset').onclick=()=>{pts=[];hits=[];ringClicks={};skipped=new Set();$('#hits').innerHTML='<tr><th>#</th><th>Score</th><th>x mm</th><th>y mm</th><th>from centre</th></tr>';setMode('cal');recompute();};
 $('#jit').oninput=e=>{jitter=+e.target.value;$('#jitOut').textContent=jitter+' px';makeJitter();draw();};
 $('#newPhoto').onclick=()=>$('#file').click();
 $('#pick').onclick=()=>$('#file').click();
@@ -268,6 +316,7 @@ $('#pick').onclick=()=>$('#file').click();
 /* ---------- loading a photo ---------- */
 function load(fileOrUrl){
   const url=typeof fileOrUrl==='string'?fileOrUrl:URL.createObjectURL(fileOrUrl);
+  imgName=typeof fileOrUrl==='string'?'':fileOrUrl.name||'';
   img.onload=()=>{loaded=true;view={s:1,x:0,y:0};$('#drop').hidden=true;$('#reset').onclick();fit();};
   img.src=url;
 }
@@ -276,7 +325,44 @@ addEventListener('dragover',e=>e.preventDefault());
 addEventListener('drop',e=>{e.preventDefault();const f=[...e.dataTransfer.files].find(f=>f.type.startsWith('image/'));if(f)load(f);});
 addEventListener('paste',e=>{const f=[...e.clipboardData.files].find(f=>f.type.startsWith('image/'));if(f)load(f);});
 addEventListener('resize',fit);
-window.practice={load,pts:()=>pts,H:()=>H};   // handy for testing
+/* ---------- saving and opening a mapping ---------- */
+function mappingJSON(){
+  const W=img.naturalWidth,Hh=img.naturalHeight,r4=v=>+v.toFixed(4),r2=v=>+v.toFixed(2);
+  // the same mapping for picture coordinates given as 0..1 (fractions of width and height), handy when the
+  // camera resolution changes
+  const Hn=[H[0]*W,H[1]*Hh,H[2],H[3]*W,H[4]*Hh,H[5],H[6]*W,H[7]*Hh,H[8]];
+  return {
+    format:'board-mapping',version:1,created:new Date().toISOString(),
+    board:{units:'mm',origin:'centre of the bull',axes:'x to the right, y down, 20 at the top',segmentOrder:ORDER,
+      rings:Object.fromEntries(RINGS.filter(r=>!r.check).map(r=>[r.k,r2(R[r.k])]).concat([['dblOut',STD.dblOut]])),standardRings:STD},
+    image:{name:imgName,width:W,height:Hh},
+    imageToBoard:H.map(v=>+v.toPrecision(10)),boardToImage:Hi.map(v=>+v.toPrecision(10)),
+    normalisedImageToBoard:Hn.map(v=>+v.toPrecision(10)),
+    howToUse:'board = imageToBoard x [px, py, 1]; divide the first two results by the third. Distance from the origin gives the ring, the angle clockwise from straight up gives the number (18 degrees each, 20 centred at 0).',
+    calibrationPoints:pts.map(p=>{const [bx,by]=apply(H,...p.px),[tx,ty]=TARGETS[p.t].p;
+      return {what:TARGETS[p.t].text,board:[r2(tx),r2(ty)],image:p.px.map(r2),imageNorm:[r4(p.px[0]/W),r4(p.px[1]/Hh)],errorMm:r2(Math.hypot(bx-tx,by-ty))};}),
+    ringEdgeClicks:Object.fromEntries(Object.entries(ringClicks).map(([k,a])=>[k,a.map(px=>px.map(r2))])),
+  };
+}
+function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+$('#exportBtn').onclick=()=>{if(!H)return;download((imgName.replace(/\.[^.]+$/,'')||'board')+'-mapping.json',JSON.stringify(mappingJSON(),null,1));};
+$('#copyBtn').onclick=async()=>{if(!H)return;try{await navigator.clipboard.writeText(JSON.stringify(mappingJSON(),null,1));$('#copyBtn').textContent='Copied';setTimeout(()=>$('#copyBtn').textContent='Copy as JSON',1500);}catch(e){alert('Couldn\u2019t copy. Use Save mapping instead.');}};
+$('#importBtn').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  let m;try{m=JSON.parse(await f.text());}catch(err){alert('That isn\u2019t a mapping file.');return;}
+  if(m.format!=='board-mapping'||!Array.isArray(m.calibrationPoints)){alert('That isn\u2019t a mapping file.');return;}
+  if(!loaded){alert('Open the photo first, then the mapping.');return;}
+  // if the photo is a different size (e.g. resized), scale the saved pixel positions to match
+  const sx=img.naturalWidth/m.image.width,sy=img.naturalHeight/m.image.height;
+  if(Math.abs(sx-sy)>.01)alert('This photo has a different shape from the one the mapping was made on, so it probably won\u2019t line up.');
+  const findT=b=>TARGETS.findIndex(t=>Math.hypot(t.p[0]-b[0],t.p[1]-b[1])<.05);
+  pts=m.calibrationPoints.map(c=>({t:findT(c.board),px:[c.image[0]*sx,c.image[1]*sy]})).filter(p=>p.t>=0);
+  ringClicks=Object.fromEntries(Object.entries(m.ringEdgeClicks||{}).map(([k,a])=>[k,a.map(([x,y])=>[x*sx,y*sy])]));
+  hits=[];$('#hits').innerHTML='<tr><th>#</th><th>Score</th><th>x mm</th><th>y mm</th><th>from centre</th></tr>';
+  recompute();setMode(H?'score':'cal');
+};
+window.practice={load,pts:()=>pts,H:()=>H,R,mappingJSON};   // handy for testing
 fit();renderSide();
 </script>
 </body>
