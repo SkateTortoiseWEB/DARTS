@@ -8,6 +8,12 @@ node tools/camera-sim/run.mjs "$PWD/Oche.app/Contents/Resources/oche.html" '{"se
 node tools/camera-sim/idle.mjs "$PWD/Oche.app/Contents/Resources/oche.html"   # empty board: should score nothing
 ```
 
+To replay a real recording (from the Record button in Oche's camera view), unzip it and run:
+
+```sh
+node tools/camera-sim/replay.mjs "$PWD/Oche.app/Contents/Resources/oche.html" path/to/unzipped-recording '{"sens":24}'
+```
+
 Scenario options: `seed`, `turns`, `gap` (ms between throws), `group` (mm between magnets in a turn), `magR` (magnet radius, mm), `magCol`/`hi` (magnet colour and highlight), `noise`, `shadow`.
 
 The scripts import Playwright from `/opt/node22/lib/node_modules/playwright`. Change that path if Playwright is installed somewhere else.

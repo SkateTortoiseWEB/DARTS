@@ -646,7 +646,7 @@ dialog#setup::backdrop{background:rgba(30,4,10,.72);-webkit-backdrop-filter:blur
 <div class="toast" id="toast" role="status"></div>
 
 <script>
-const OCHE_VERSION='1.9';
+const OCHE_VERSION='1.10';
 /* ============ Board geometry (mm, from board centre) ============ */
 const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const R={bullIn:6.35,bullOut:15.9,trebIn:99,trebOut:107,dblIn:162,dblOut:170};
@@ -1603,16 +1603,40 @@ function camOpen(bin){
   for(let i=0;i<e.length;i++)if(e[i]){o[i]=o[i-1]=o[i+1]=o[i-gw]=o[i+gw]=1;}
   return o;
 }
-// Changed pixels between two frames. Pixels that clearly changed (above the sensitivity) are the seeds;
-// the area then grows into faintly changed neighbours, so a dark magnet sitting partly on black print
-// comes out whole instead of as the bits that happen to lie over white.
+// For each pixel of a reference picture, the darkest and brightest value (per colour) among it and its 8
+// neighbours. A new picture only "differs" where it's outside that range, so a picture that has shifted by
+// a pixel or so (the phone refocusing, the paper moving when a magnet hits it) doesn't light up every
+// printed edge.
+const camRanges=new WeakMap();
+function camRefRange(ref){
+  let r=camRanges.get(ref);if(r)return r;
+  const {gw,gh}=CAM,n=gw*gh,mn=new Uint8Array(n*3),mx=new Uint8Array(n*3);
+  for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){
+    const o=(y*gw+x)*3;
+    for(let c=0;c<3;c++){let lo=255,hi=0;
+      for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=gh)continue;
+        for(let dx=-1;dx<=1;dx++){const xx=x+dx;if(xx<0||xx>=gw)continue;const v=ref[(yy*gw+xx)*3+c];if(v<lo)lo=v;if(v>hi)hi=v;}}
+      mn[o+c]=lo;mx[o+c]=hi;}
+  }
+  r={mn,mx};camRanges.set(ref,r);return r;
+}
+function camPxShift(a,rr,i,o){
+  const k=i*3;let d=0;
+  for(let c=0;c<3;c++){const v=a[k+c]-o[c],e=v>rr.mx[k+c]?v-rr.mx[k+c]:v<rr.mn[k+c]?rr.mn[k+c]-v:0;if(e>d)d=e;}
+  return d;
+}
+// Changed pixels between a new picture (a) and a reference (b). Pixels that clearly changed (above the
+// sensitivity) are the seeds; the area then grows into faintly changed neighbours, so a dark magnet sitting
+// partly on black print comes out whole instead of as the bits that happen to lie over white.
+// Also returns how strongly each pixel changed (peak), to throw out areas that only changed faintly.
 function camDiffMask(a,b){
-  const t=CAM.opts.sens,lo=Math.max(6,t*.4),m=CAM.mask,n=m.length,gw=CAM.gw,off=camOffsets(a,b),raw=new Uint8Array(n),weak=new Uint8Array(n);
-  for(let i=0;i<n;i++){if(!m[i])continue;const v=camPx(a,b,i,off);if(v>lo){weak[i]=1;if(v>t)raw[i]=1;}}
+  const t=CAM.opts.sens,lo=Math.max(6,t*.4),m=CAM.mask,n=m.length,gw=CAM.gw,off=camOffsets(a,b),rr=camRefRange(b),
+    raw=new Uint8Array(n),weak=new Uint8Array(n),val=new Uint8Array(n);
+  for(let i=0;i<n;i++){if(!m[i])continue;const v=camPxShift(a,rr,i,off);val[i]=Math.min(255,v);if(v>lo){weak[i]=1;if(v>t)raw[i]=1;}}
   const bin=camOpen(raw),stack=[];let count=0;
   for(let i=0;i<n;i++)if(bin[i]){stack.push(i);count++;}
   while(stack.length){const k=stack.pop();for(const q of [k-1,k+1,k-gw,k+gw])if(weak[q]&&!bin[q]){bin[q]=1;count++;stack.push(q);}}
-  return {bin,count,off};
+  return {bin,count,off,val};
 }
 // clear changes only (no growing): used to tell whether anything is moving
 function camMotion(a,b){
@@ -1663,9 +1687,34 @@ function camTipsOf(px,g,ref){
 // (+1) or "clearly not" (-1), ignore pixels where the empty board already looks like the magnet (no evidence
 // either way), and find the disc that best covers the +1s without covering -1s. If plenty of +1s are left
 // outside it, two or three magnets are touching: look for another disc.
+// brighter than the board in some colour, or clearly a different colour: can't be a shadow
+function camVivid(g,k,rk){
+  const q=[0,1,2].map(c=>(g[k*3+c]+2)/(rk[c]+2));
+  return [0,1,2].some(c=>g[k*3+c]>rk[c]+25)||Math.max(...q)-Math.min(...q)>.3;
+}
+// darker than the paper in every colour, but not black: shadows dim paper to roughly a quarter to nine tenths,
+// a dark magnet body goes much darker than that
+function camDarkerOnly(g,k,rk){
+  if(![0,1,2].every(c=>g[k*3+c]<rk[c]-4))return false;
+  return (g[k*3]+g[k*3+1]+g[k*3+2]+6)/(rk[0]+rk[1]+rk[2]+6)>=.22;
+}
+// A shadow makes the paper darker without changing its colour: every channel drops by about the same share.
+function camShadowLike(g,k,rk){
+  if(rk[0]+rk[1]+rk[2]<150)return false;   // too dark to tell
+  const q=[0,1,2].map(c=>(g[k*3+c]+2)/(rk[c]+2)),avg=(q[0]+q[1]+q[2])/3;
+  return avg>.25&&avg<.9&&Math.max(...q)-Math.min(...q)<.12;
+}
 function camFitDiscs(px,g,ref){
   const {gw,gh}=CAM,t=CAM.opts.sens,off=camOffsets(g,ref);
-  const vs=px.map(k=>[camPx(g,ref,k,off),k]).sort((a,b)=>b[0]-a[0]).slice(0,Math.max(3,Math.ceil(px.length*.3)));
+  const refAt=k=>[ref[k*3]+off[0],ref[k*3+1]+off[1],ref[k*3+2]+off[2]];
+  // The magnet's colour comes from its most-changed pixels, leaving out its shadow (often the biggest change).
+  // A shiny or coloured magnet gives itself away best: a shadow can only make the paper darker, never
+  // brighter or a different colour. If there are enough such pixels, learn the colour from those, and treat
+  // anything that is only darker than the paper as shadow.
+  const vivid=px.filter(k=>camVivid(g,k,refAt(k)));
+  const shiny=vivid.length>=Math.max(6,.03*px.length);
+  const lit=shiny?vivid:px.filter(k=>!camShadowLike(g,k,refAt(k)));
+  const vs=(lit.length>=3?lit:px).map(k=>[camPx(g,ref,k,off),k]).sort((a,b)=>b[0]-a[0]).slice(0,Math.max(3,Math.ceil((lit.length>=3?lit:px).length*.3)));
   const mag=[0,1,2].map(c=>{const a=vs.map(([,k])=>g[k*3+c]).sort((x,y)=>x-y);return a[a.length>>1];});
   const dist=(a,k,o)=>Math.max(Math.abs(a[k*3]-o[0]),Math.abs(a[k*3+1]-o[1]),Math.abs(a[k*3+2]-o[2]));
   const rMin=Math.max(2,Math.round(3/CAM.mpp)),rMax=Math.max(rMin+1,Math.round(15/CAM.mpp));
@@ -1675,9 +1724,11 @@ function camFitDiscs(px,g,ref){
   let pos=0;
   for(let y=0;y<wh;y++)for(let x=0;x<ww;x++){
     const k=(y+wy0)*gw+x+wx0;if(!CAM.mask[k])continue;
-    const rk=[ref[k*3]+off[0],ref[k*3+1]+off[1],ref[k*3+2]+off[2]];
+    const rk=refAt(k);
     if(Math.max(Math.abs(rk[0]-mag[0]),Math.abs(rk[1]-mag[1]),Math.abs(rk[2]-mag[2]))<=2*t)continue;   // a magnet here wouldn't show
-    ev[y*ww+x]=dist(g,k,mag)<dist(g,k,rk)?1:-1;if(ev[y*ww+x]>0)pos++;
+    const vivid=camVivid(g,k,rk);   // brighter than the paper or a different colour: magnet, whatever its colour
+    if(!vivid&&(camShadowLike(g,k,rk)||shiny&&camDarkerOnly(g,k,rk)))continue;   // just the paper in shade: says nothing about where the magnet is
+    ev[y*ww+x]=vivid||dist(g,k,mag)<dist(g,k,rk)?1:-1;if(ev[y*ww+x]>0)pos++;
   }
   const spans=[];for(let r=0;r<=rMax;r++){const sp=[];for(let dy=-r;dy<=r;dy++)sp.push([dy,Math.floor(Math.sqrt(r*r-dy*dy))]);spans.push(sp);}
   const out=[];
@@ -1736,12 +1787,19 @@ function camWhen(o){
   const st=CAM.seenAt;if(!st)return 0;
   const a=o.map(k=>st[k]).filter(Boolean).sort((x,y)=>x-y);return a.length?a[a.length>>1]:Infinity;
 }
+// the size (square mm of changed picture) of the last few darts scored, to recognise the next ones
+function camRememberArea(a){CAM.sizes=(CAM.sizes||[]).concat(a).slice(-9);}
+function camTypicalArea(){const a=(CAM.sizes||[]).slice().sort((x,y)=>x-y);return a.length>=2?a[a.length>>1]:0;}
 function camMinArea(){return Math.max(6,Math.PI*Math.pow(2/CAM.mpp,2));}   // 4 mm across
 function camAnalyse(g){
   const mpp=CAM.mpp,minArea=camMinArea(),maxArea=Math.PI*Math.pow(50/mpp,2);
   const ref=CAM.ref,d=camDiffMask(g,ref);CAM.lastDiff=d.bin;
   if(d.count>CAM.maskCount*.3){CAM.ref=CAM.base=g;CAM.seenAt=null;camSetStatus('Big change (camera moved or lights changed), so I re-learnt the empty board.');return;}
-  const objs=camObjects(d.bin).filter(o=>o.length>=minArea);
+  // a real dart changes some pixels a lot; shimmer, dust and compression noise only change them a little
+  // and it's about as big as the darts seen so far (crumbs and fluff knocked about by a landing magnet aren't)
+  const typical=camTypicalArea()/(mpp*mpp),smallest=Math.max(minArea,.15*typical);
+  const strong=Math.max(2*CAM.opts.sens,40);
+  const objs=camObjects(d.bin).filter(o=>{if(o.length<smallest)return false;let pk=0;for(const k of o)if(d.val[k]>pk)pk=d.val[k];return pk>=strong;});
   const emptyNow=camDiffMask(g,CAM.base).count<minArea;
   if(!objs.length){
     CAM.ref=g;CAM.seenAt=null;
@@ -1760,7 +1818,7 @@ function camAnalyse(g){
   }
   added.sort((a,b)=>camWhen(a)-camWhen(b));
   CAM.seenAt=null;
-  const hits=added.flatMap(o=>camTipsOf(o,g,ref).map(([x,y])=>{const [nx,ny]=camG2N(x,y),[bx,by]=hApply(CAM.H,nx,ny);return {nx,ny,bx,by,label:scoreAt(bx,by).label};}));
+  const hits=added.flatMap(o=>camTipsOf(o,g,ref).map((p,i,all)=>{if(!i)camRememberArea(o.length*mpp*mpp/all.length);return p;}).map(([x,y])=>{const [nx,ny]=camG2N(x,y),[bx,by]=hApply(CAM.H,nx,ny);return {nx,ny,bx,by,label:scoreAt(bx,by).label};}));
   CAM.lastHit=hits[hits.length-1];
   const labels=hits.map(h=>h.label).join(', ');
   if(!CAM.opts.auto){camSetStatus(`Saw ${labels} (automatic scoring is off).`);return;}

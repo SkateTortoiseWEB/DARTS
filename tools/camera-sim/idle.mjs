@@ -3,7 +3,7 @@ import {chromium} from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import fs from 'fs';
 const b=await chromium.launch();const pg=await b.newPage({viewport:{width:1400,height:900}});
 await pg.addInitScript(`window.SIM_PARAMS={"noise":18};localStorage.clear();`);
-await pg.addInitScript(fs.readFileSync('fakecam.js','utf8'));
+await pg.addInitScript(fs.readFileSync(new URL('./fakecam.js',import.meta.url),'utf8'));
 await pg.goto('file://'+process.argv[2]);
 await pg.evaluate(()=>{document.querySelector('#setup')?.close?.();newGame({names:['A','B'],start:501,legsToWin:1,doubleOut:true});window.HITS=[];const o=window.registerDart;window.registerDart=(x,y)=>{HITS.push(scoreAt(x,y).label);o(x,y);};});
 await pg.evaluate(()=>camStart());await pg.waitForTimeout(1500);
