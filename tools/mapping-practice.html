@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board mapping practice</title>
+<style>
+:root{--bg:#1d2623;--panel:#26312d;--line:#3a4742;--text:#ecebe4;--muted:#a3aca6;--accent:#3fae6a;--pink:#ff2d95;--gold:#d9b45a}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;grid-template-columns:minmax(0,1fr) 340px;overflow:hidden}
+#stage{position:relative;min-width:0;min-height:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none}
+#drop{position:absolute;inset:24px;border:2px dashed var(--line);border-radius:14px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:24px}
+#drop[hidden]{display:none}
+#drop b{color:var(--text);font-size:20px;display:block;margin-bottom:6px}
+aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:20px;margin:0}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
+.btn{border:1px solid var(--line);background:#2f3b36;color:var(--text);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
+.btn:hover{filter:brightness(1.15)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#10150f}
+.btn:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button{flex:1;border:0;background:none;color:var(--muted);padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#10150f}
+#task{background:#1d2623;border:1px solid var(--line);border-radius:10px;padding:12px}
+#task p{margin:0 0 8px}
+#mini{display:block;margin:4px auto 0}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{padding:3px 4px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}
+th{color:var(--muted);font-weight:600}
+.big{font-size:28px;font-weight:700;color:var(--gold);line-height:1.1}
+.muted{color:var(--muted);font-size:13px}
+.bad{color:#ff6b6b}.ok{color:var(--accent)}
+label.sl{display:flex;gap:8px;align-items:center;font-size:14px}
+label.sl input{flex:1}
+kbd{background:#1d2623;border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:12px}
+@media (max-width:760px){body{grid-template-columns:1fr;grid-template-rows:60vh auto;overflow:auto}aside{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="drop"><div><b>Drop a photo of a dartboard here</b>or <button class="btn" id="pick" type="button">choose a photo</button>, or paste one with <kbd>⌘</kbd>+<kbd>V</kbd></div></div>
+  <input type="file" id="file" accept="image/*" hidden>
+</div>
+<aside>
+  <div>
+    <h1>Board mapping practice</h1>
+    <p class="muted">Click known points on the photo, and the page works out the mapping (a homography) from photo pixels to board millimetres. Scroll to zoom, drag to move the photo, drag a pink point to adjust it.</p>
+  </div>
+  <div class="seg" role="group" aria-label="Mode">
+    <button type="button" id="modeCal" aria-pressed="true">1. Calibrate</button>
+    <button type="button" id="modeScore" aria-pressed="false">2. Score</button>
+  </div>
+  <div id="task"></div>
+  <div id="resBox" hidden>
+    <h2>How well the points agree</h2>
+    <table id="res"></table>
+    <p class="muted" id="resNote"></p>
+  </div>
+  <div>
+    <h2>Sloppy clicks</h2>
+    <label class="sl">±<input type="range" id="jit" min="0" max="10" step="1" value="0"><output id="jitOut">0 px</output></label>
+    <p class="muted">Draws 30 faint maps with every calibration point nudged at random by up to this many pixels, so you can see how far the wires could move if your clicks were that far off.</p>
+  </div>
+  <div id="scoreBox">
+    <h2>Under the cursor</h2>
+    <div class="big" id="hoverScore">–</div>
+    <div class="muted" id="hoverMm"></div>
+  </div>
+  <div>
+    <h2>Clicked darts</h2>
+    <table id="hits"><tr><th>#</th><th>Score</th><th>x mm</th><th>y mm</th><th>from centre</th></tr></table>
+  </div>
+  <div class="row">
+    <button class="btn" type="button" id="undo">Undo last point</button>
+    <button class="btn" type="button" id="reset">Start again</button>
+    <button class="btn" type="button" id="newPhoto">New photo</button>
+  </div>
+</aside>
+<script>
+/* ---------- board geometry (millimetres, x right, y down, 20 at the top) ---------- */
+const R={bullIn:6.35,bullOut:15.9,trebIn:99,trebOut:107,dblIn:162,dblOut:170};
+const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+const polar=(r,deg)=>[r*Math.sin(deg*Math.PI/180),-r*Math.cos(deg*Math.PI/180)];
+// wire between segment i and i+1 (clockwise) is at i*18+9 degrees
+const wireBetween=(a,b)=>{const i=ORDER.indexOf(a),j=ORDER.indexOf(b);const k=(j===(i+1)%20)?i:j;return k*18+9;};
+const TARGETS=[
+  {text:'the outer edge of the double ring, on the wire between 5 and 20',p:polar(R.dblOut,wireBetween(5,20)),need:true},
+  {text:'the outer edge of the double ring, on the wire between 13 and 6',p:polar(R.dblOut,wireBetween(13,6)),need:true},
+  {text:'the outer edge of the double ring, on the wire between 17 and 3',p:polar(R.dblOut,wireBetween(17,3)),need:true},
+  {text:'the outer edge of the double ring, on the wire between 8 and 11',p:polar(R.dblOut,wireBetween(8,11)),need:true},
+  {text:'the exact centre of the bull',p:[0,0]},
+  {text:'the outer edge of the double ring, on the wire between 20 and 1',p:polar(R.dblOut,wireBetween(20,1))},
+  {text:'the outer edge of the double ring, on the wire between 6 and 10',p:polar(R.dblOut,wireBetween(6,10))},
+  {text:'the outer edge of the double ring, on the wire between 3 and 19',p:polar(R.dblOut,wireBetween(3,19))},
+  {text:'the outer edge of the double ring, on the wire between 11 and 14',p:polar(R.dblOut,wireBetween(11,14))},
+];
+function scoreAt(x,y){
+  const r=Math.hypot(x,y);let th=Math.atan2(x,-y)*180/Math.PI;if(th<0)th+=360;
+  if(r<=R.bullIn)return 'Bull (50)';
+  if(r<=R.bullOut)return '25';
+  if(r>R.dblOut)return 'Miss';
+  const n=ORDER[Math.floor(((th+9)%360)/18)];
+  if(r>=R.dblIn)return 'D'+n+' ('+2*n+')';
+  if(r>=R.trebIn&&r<=R.trebOut)return 'T'+n+' ('+3*n+')';
+  return String(n);
+}
+
+/* ---------- homography: least squares from 4+ point pairs ---------- */
+function solve8(src,dst){
+  const N=Array.from({length:8},()=>new Array(9).fill(0));
+  src.forEach(([x,y],i)=>{const [X,Y]=dst[i];
+    for(const [row,b] of [[[x,y,1,0,0,0,-X*x,-X*y],X],[[0,0,0,x,y,1,-Y*x,-Y*y],Y]])
+      for(let a=0;a<8;a++){for(let c=0;c<8;c++)N[a][c]+=row[a]*row[c];N[a][8]+=row[a]*b;}});
+  for(let c=0;c<8;c++){
+    let p=c;for(let r=c+1;r<8;r++)if(Math.abs(N[r][c])>Math.abs(N[p][c]))p=r;
+    [N[c],N[p]]=[N[p],N[c]];if(Math.abs(N[c][c])<1e-12)return null;
+    for(let r=0;r<8;r++)if(r!==c){const f=N[r][c]/N[c][c];for(let j=c;j<9;j++)N[r][j]-=f*N[c][j];}
+  }
+  const h=N.map((row,i)=>row[8]/row[i]);return [...h,1];
+}
+// photo pixels are scaled down and board mm scaled to about 1 first, so the sums stay well-behaved
+function homography(photo,board){
+  const S=Math.max(img.naturalWidth,img.naturalHeight)||1;
+  const h=solve8(photo.map(([x,y])=>[x/S,y/S]),board.map(([x,y])=>[x/170,y/170]));if(!h)return null;
+  // H = diag(170,170,1) * h * diag(1/S,1/S,1)
+  return [h[0]*170/S,h[1]*170/S,h[2]*170,h[3]*170/S,h[4]*170/S,h[5]*170,h[6]/S,h[7]/S,h[8]];
+}
+const apply=(H,x,y)=>{const w=H[6]*x+H[7]*y+H[8];return [(H[0]*x+H[1]*y+H[2])/w,(H[3]*x+H[4]*y+H[5])/w];};
+function invert(m){const [a,b,c,d,e,f,g,h,i]=m,A=e*i-f*h,B=-(d*i-f*g),C=d*h-e*g,det=a*A+b*B+c*C;if(Math.abs(det)<1e-15)return null;
+  return [A/det,-(b*i-c*h)/det,(b*f-c*e)/det,B/det,(a*i-c*g)/det,-(a*f-c*d)/det,C/det,-(a*h-b*g)/det,(a*e-b*d)/det];}
+
+/* ---------- state ---------- */
+const $=s=>document.querySelector(s),cv=$('#cv'),ctx=cv.getContext('2d'),img=new Image();
+let loaded=false,mode='cal',pts=[],H=null,Hi=null,hits=[],view={s:1,x:0,y:0},mouse=null,drag=null,jitter=0,jitterMaps=[];
+function recompute(){
+  H=Hi=null;
+  if(pts.length>=4){H=homography(pts.map(p=>p.px),pts.map(p=>TARGETS[p.t].p));Hi=H&&invert(H);}
+  makeJitter();renderSide();draw();
+}
+function makeJitter(){
+  jitterMaps=[];if(!jitter||pts.length<4)return;
+  for(let n=0;n<30;n++){const h=homography(pts.map(p=>[p.px[0]+(Math.random()*2-1)*jitter,p.px[1]+(Math.random()*2-1)*jitter]),pts.map(p=>TARGETS[p.t].p));const hi=h&&invert(h);if(hi)jitterMaps.push(hi);}
+}
+const nextTarget=()=>{const used=new Set(pts.map(p=>p.t));return TARGETS.findIndex((t,i)=>!used.has(i)&&!skipped.has(i));};
+let skipped=new Set();
+
+/* ---------- drawing ---------- */
+function fit(){const r=cv.getBoundingClientRect(),dpr=devicePixelRatio||1;cv.width=r.width*dpr;cv.height=r.height*dpr;
+  if(loaded&&!view.set){const s=Math.min(r.width/img.naturalWidth,r.height/img.naturalHeight)*.95;view={s,x:(r.width-img.naturalWidth*s)/2,y:(r.height-img.naturalHeight*s)/2,set:true};}draw();}
+const toScreen=([x,y])=>[x*view.s+view.x,y*view.s+view.y];
+const toImage=(sx,sy)=>[(sx-view.x)/view.s,(sy-view.y)/view.s];
+function drawMap(Hinv,style,width,labels){
+  ctx.strokeStyle=style;ctx.lineWidth=width;
+  const P=(bx,by)=>toScreen(apply(Hinv,bx,by));
+  for(const r of [R.bullIn,R.bullOut,R.trebIn,R.trebOut,R.dblIn,R.dblOut]){ctx.beginPath();for(let a=0;a<=360;a+=3){const [x,y]=P(...polar(r,a));a?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+  for(let i=0;i<20;i++){const a=i*18+9;ctx.beginPath();ctx.moveTo(...P(...polar(R.bullOut,a)));ctx.lineTo(...P(...polar(R.dblOut,a)));ctx.stroke();}
+  if(labels){ctx.fillStyle=style;ctx.font='700 14px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+    ORDER.forEach((n,i)=>{const [x,y]=P(...polar(186,i*18));ctx.fillText(n,x,y);});}
+}
+function draw(){
+  const dpr=devicePixelRatio||1;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,cv.width,cv.height);
+  if(!loaded)return;
+  ctx.imageSmoothingEnabled=view.s<3;
+  ctx.drawImage(img,view.x,view.y,img.naturalWidth*view.s,img.naturalHeight*view.s);
+  for(const m of jitterMaps)drawMap(m,'rgba(255,210,63,.18)',1,false);
+  if(Hi)drawMap(Hi,'rgba(80,255,170,.95)',Math.max(1,Math.min(2,view.s*2)),true);
+  pts.forEach((p,i)=>{const [x,y]=toScreen(p.px);ctx.fillStyle=drag&&drag.i===i?'#fff':'#ff2d95';ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='700 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i+1,x,y+.5);
+    if(Hi){const [ex,ey]=toScreen(apply(Hi,...TARGETS[p.t].p));ctx.strokeStyle='#ffd23f';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(ex,ey);ctx.stroke();}});
+  hits.forEach((h,i)=>{const [x,y]=toScreen(h.px);ctx.fillStyle='#ffd23f';ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,6,0,7);ctx.fill();ctx.stroke();
+    ctx.font='700 14px system-ui';ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.lineWidth=3;ctx.strokeText(h.label.split(' ')[0],x+9,y-8);ctx.fillText(h.label.split(' ')[0],x+9,y-8);});
+  if(mouse&&mode==='cal'&&!drag?.pan)drawLoupe();
+}
+// magnifier in the corner while calibrating, so points can be placed to the pixel
+function drawLoupe(){
+  const r=cv.getBoundingClientRect(),size=170,z=Math.max(6,view.s*4),[ix,iy]=toImage(mouse[0],mouse[1]);
+  const lx=mouse[0]>r.width-size-40&&mouse[1]<size+40?16:r.width-size-16,ly=16;
+  ctx.save();ctx.beginPath();ctx.rect(lx,ly,size,size);ctx.clip();ctx.fillStyle='#000';ctx.fillRect(lx,ly,size,size);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(img,ix-size/2/z,iy-size/2/z,size/z,size/z,lx,ly,size,size);
+  if(Hi){ctx.translate(lx+size/2-ix*z,ly+size/2-iy*z);const sv=view;view={s:z,x:0,y:0};drawMap(Hi,'rgba(80,255,170,.9)',1.5,false);view=sv;}
+  ctx.restore();
+  ctx.strokeStyle='#ff2d95';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lx+size/2,ly);ctx.lineTo(lx+size/2,ly+size);ctx.moveTo(lx,ly+size/2);ctx.lineTo(lx+size,ly+size/2);ctx.stroke();
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(lx,ly,size,size);
+}
+
+/* ---------- side panel ---------- */
+function miniBoard(highlight){
+  const s=v=>(v*0.36+70).toFixed(1);let svg=`<svg id="mini" width="140" height="140" viewBox="0 0 140 140">`;
+  for(let i=0;i<20;i++){const a0=i*18-9,a1=a0+18;for(const [r0,r1,dark] of [[R.dblIn,R.dblOut,i%2===0],[R.trebOut,R.dblIn,i%2===1],[R.trebIn,R.trebOut,i%2===0],[R.bullOut,R.trebIn,i%2===1]]){
+    const p=[polar(r1,a0),polar(r1,a1),polar(r0,a1),polar(r0,a0)];
+    svg+=`<path d="M${s(p[0][0])} ${s(p[0][1])}A${r1*.36} ${r1*.36} 0 0 1 ${s(p[1][0])} ${s(p[1][1])}L${s(p[2][0])} ${s(p[2][1])}A${r0*.36} ${r0*.36} 0 0 0 ${s(p[3][0])} ${s(p[3][1])}Z" fill="${dark?'#2b2b2b':'#e8e4d8'}"/>`;}}
+  svg+=`<circle cx="70" cy="70" r="${R.bullOut*.36}" fill="#3a8a4a"/><circle cx="70" cy="70" r="${R.bullIn*.36}" fill="#c22630"/>`;
+  ORDER.forEach((n,i)=>{const [x,y]=polar(186,i*18);svg+=`<text x="${s(x)}" y="${s(y)}" fill="#a3aca6" font-size="8" text-anchor="middle" dominant-baseline="middle">${n}</text>`;});
+  if(highlight){svg+=`<circle cx="${s(highlight[0])}" cy="${s(highlight[1])}" r="5" fill="none" stroke="#ff2d95" stroke-width="2.5"><animate attributeName="r" values="4;8;4" dur="1.2s" repeatCount="indefinite"/></circle>`;}
+  return svg+'</svg>';
+}
+function renderSide(){
+  const t=nextTarget(),task=$('#task');
+  if(!loaded){task.innerHTML='<p>Load a photo to start.</p>';}
+  else if(mode==='cal'){
+    if(t<0)task.innerHTML=`<p><b>All points placed.</b> Drag any pink point to fine-tune, then switch to <b>2. Score</b>.</p>`;
+    else task.innerHTML=`<p><b>Point ${pts.length+1}:</b> click ${TARGETS[t].text}.</p>${miniBoard(TARGETS[t].p)}
+      <div class="row" style="margin-top:8px">${TARGETS[t].need?'':'<button class="btn" type="button" id="skip">Skip this one</button>'}
+      ${pts.length>=4?'<button class="btn primary" type="button" id="goScore">Done, start scoring</button>':`<span class="muted">${4-pts.length} more needed before the map appears.</span>`}</div>`;
+    $('#skip')?.addEventListener('click',()=>{skipped.add(t);renderSide();});
+    $('#goScore')?.addEventListener('click',()=>setMode('score'));
+  }else task.innerHTML=H?`<p><b>Click anywhere on the board</b> to score that spot. Hover to see the score under the cursor.</p>`:`<p>Place at least 4 calibration points first.</p>`;
+  // residuals: map each clicked point through the fit and compare with where it should be on the board
+  const box=$('#resBox');box.hidden=!(H&&pts.length>=4);
+  if(H){
+    let rows='<tr><th>#</th><th>Point</th><th>Off by</th></tr>',worst=0;
+    pts.forEach((p,i)=>{const [bx,by]=apply(H,...p.px),[tx,ty]=TARGETS[p.t].p,e=Math.hypot(bx-tx,by-ty);worst=Math.max(worst,e);
+      rows+=`<tr><td>${i+1}</td><td>${TARGETS[p.t].text.replace('the outer edge of the double ring, on the wire between','double,').replace('the exact centre of the bull','bull centre')}</td><td class="${e>1.5?'bad':'ok'}">${e.toFixed(1)} mm</td></tr>`;});
+    $('#res').innerHTML=rows;
+    $('#resNote').textContent=pts.length===4?'With exactly 4 points the map always passes through all of them, so this shows 0 even if a click is off. Add a 5th or more to see how well your clicks agree.'
+      :worst>1.5?'At least one point disagrees with the others by over 1.5 mm. Zoom in and drag it (the yellow line shows where the map thinks it belongs).':'Your points agree well. Under 1 mm is very good.';
+  }
+  $('#modeScore').disabled=!H;
+}
+function setMode(m){mode=m;$('#modeCal').setAttribute('aria-pressed',m==='cal');$('#modeScore').setAttribute('aria-pressed',m==='score');renderSide();draw();}
+function addHit(px){
+  const [bx,by]=apply(H,...px),label=scoreAt(bx,by);hits.push({px,label});
+  const tr=document.createElement('tr');tr.innerHTML=`<td>${hits.length}</td><td><b>${label}</b></td><td>${bx.toFixed(1)}</td><td>${by.toFixed(1)}</td><td>${Math.hypot(bx,by).toFixed(1)} mm</td>`;
+  $('#hits').appendChild(tr);draw();
+}
+
+/* ---------- input ---------- */
+const evPos=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
+cv.addEventListener('pointerdown',e=>{
+  if(!loaded)return;const [sx,sy]=evPos(e);cv.setPointerCapture(e.pointerId);
+  const near=mode!=='cal'?-1:pts.findIndex(p=>{const [x,y]=toScreen(p.px);return Math.hypot(x-sx,y-sy)<11;});
+  drag=near>=0?{i:near}:{pan:false,sx,sy,vx:view.x,vy:view.y};draw();
+});
+cv.addEventListener('pointermove',e=>{
+  const [sx,sy]=evPos(e);mouse=[sx,sy];
+  if(drag&&drag.i!==undefined){pts[drag.i].px=toImage(sx,sy);recompute();return;}
+  if(drag&&(drag.pan||Math.hypot(sx-drag.sx,sy-drag.sy)>4)){drag.pan=true;view.x=drag.vx+sx-drag.sx;view.y=drag.vy+sy-drag.sy;draw();return;}
+  if(H){const [bx,by]=apply(H,...toImage(sx,sy));$('#hoverScore').textContent=scoreAt(bx,by);$('#hoverMm').textContent=`x ${bx.toFixed(1)} mm, y ${by.toFixed(1)} mm, ${Math.hypot(bx,by).toFixed(1)} mm from the centre`;}
+  draw();
+});
+cv.addEventListener('pointerup',e=>{
+  const d=drag;drag=null;if(!d)return;
+  if(d.i!==undefined){recompute();return;}
+  if(!d.pan){const px=toImage(...evPos(e));
+    if(mode==='cal'){const t=nextTarget();if(t>=0){pts.push({t,px});recompute();}}
+    else if(H)addHit(px);}
+  draw();
+});
+cv.addEventListener('pointerleave',()=>{mouse=null;draw();});
+cv.addEventListener('wheel',e=>{
+  if(!loaded)return;e.preventDefault();const [sx,sy]=evPos(e),[ix,iy]=toImage(sx,sy);
+  const f=Math.exp(-e.deltaY*(e.ctrlKey?.01:.0015));view.s=Math.min(40,Math.max(.05,view.s*f));view.x=sx-ix*view.s;view.y=sy-iy*view.s;draw();
+},{passive:false});
+$('#modeCal').onclick=()=>setMode('cal');
+$('#modeScore').onclick=()=>{if(H)setMode('score');};
+$('#undo').onclick=()=>{if(mode==='score'&&hits.length){hits.pop();$('#hits').lastElementChild.remove();draw();}else{pts.pop();recompute();}};
+$('#reset').onclick=()=>{pts=[];hits=[];skipped=new Set();$('#hits').innerHTML='<tr><th>#</th><th>Score</th><th>x mm</th><th>y mm</th><th>from centre</th></tr>';setMode('cal');recompute();};
+$('#jit').oninput=e=>{jitter=+e.target.value;$('#jitOut').textContent=jitter+' px';makeJitter();draw();};
+$('#newPhoto').onclick=()=>$('#file').click();
+$('#pick').onclick=()=>$('#file').click();
+
+/* ---------- loading a photo ---------- */
+function load(fileOrUrl){
+  const url=typeof fileOrUrl==='string'?fileOrUrl:URL.createObjectURL(fileOrUrl);
+  img.onload=()=>{loaded=true;view={s:1,x:0,y:0};$('#drop').hidden=true;$('#reset').onclick();fit();};
+  img.src=url;
+}
+$('#file').onchange=e=>{if(e.target.files[0])load(e.target.files[0]);};
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();const f=[...e.dataTransfer.files].find(f=>f.type.startsWith('image/'));if(f)load(f);});
+addEventListener('paste',e=>{const f=[...e.clipboardData.files].find(f=>f.type.startsWith('image/'));if(f)load(f);});
+addEventListener('resize',fit);
+window.practice={load,pts:()=>pts,H:()=>H};   // handy for testing
+fit();renderSide();
+</script>
+</body>
+</html>
