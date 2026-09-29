@@ -1472,8 +1472,8 @@ const CAL_TARGETS=[{label:'the centre of the bull',x:0,y:0},{label:'the outer ed
 const CAM={roi:{x:0,y:0,w:1,h:1},mpp:1,hist:[],stream:null,video:$('#camVideo'),running:false,points:[],H:null,Hinv:null,gw:320,gh:180,
   ref:null,base:null,prev:null,lastMotion:0,sawMotion:false,mask:null,maskCount:1,timer:null,calibrating:false,drag:-1,
   lastHit:null,lastDiff:null,lastCheck:0,status:'',opts:{auto:true,autoNext:true,sens:24,tip:'centre',device:'',enabled:false}};
-try{const c=JSON.parse(localStorage.getItem('oche-cam')||'null');if(c){if(Array.isArray(c.points))CAM.points=c.points;Object.assign(CAM.opts,c.opts||{});}}catch(e){}
-function camSave(){try{localStorage.setItem('oche-cam',JSON.stringify({points:CAM.points,opts:CAM.opts}));}catch(e){}}
+try{const c=JSON.parse(localStorage.getItem('oche-cam')||'null');if(c){if(Array.isArray(c.points))CAM.points=c.points;if(Array.isArray(c.sizes))CAM.sizes=c.sizes.filter(Number.isFinite).slice(-9);Object.assign(CAM.opts,c.opts||{});}}catch(e){}
+function camSave(){try{localStorage.setItem('oche-cam',JSON.stringify({points:CAM.points,opts:CAM.opts,sizes:CAM.sizes||[]}));}catch(e){}}
 
 // ---- maths: least-squares homography (image -> board) from 4+ points ----
 function solveHomography(src,dst){
@@ -1788,7 +1788,7 @@ function camWhen(o){
   const a=o.map(k=>st[k]).filter(Boolean).sort((x,y)=>x-y);return a.length?a[a.length>>1]:Infinity;
 }
 // the size (square mm of changed picture) of the last few darts scored, to recognise the next ones
-function camRememberArea(a){CAM.sizes=(CAM.sizes||[]).concat(a).slice(-9);}
+function camRememberArea(a){CAM.sizes=(CAM.sizes||[]).concat(a).slice(-9);camSave();}   // kept between sessions
 function camTypicalArea(){const a=(CAM.sizes||[]).slice().sort((x,y)=>x-y);return a.length>=2?a[a.length>>1]:0;}
 function camMinArea(){return Math.max(6,Math.PI*Math.pow(2/CAM.mpp,2));}   // 4 mm across
 function camAnalyse(g){
@@ -1968,7 +1968,7 @@ async function recSave(){
   const info={
     oche:OCHE_VERSION,recordedAt:new Date().toISOString(),seconds:+((performance.now()-REC.start)/1000).toFixed(1),
     calibrationPoints:CAM.points,calibrationTargets:CAL_TARGETS.map(t=>({x:t.x,y:t.y,what:t.label})),
-    options:CAM.opts,roi:CAM.roi,analysisGrid:[CAM.gw,CAM.gh],mmPerPixel:CAM.mpp,
+    options:CAM.opts,learnedDartSizes:CAM.sizes||[],roi:CAM.roi,analysisGrid:[CAM.gw,CAM.gh],mmPerPixel:CAM.mpp,
     camera:{label:track?track.label:'',settings,capabilities:caps},
     liveLog:REC.log,userAgent:navigator.userAgent
   };

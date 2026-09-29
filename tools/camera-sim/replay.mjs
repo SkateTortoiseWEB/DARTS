@@ -5,12 +5,13 @@
 import {chromium} from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import fs from 'fs';
 const [,,page,dir,extra]=process.argv;const info=JSON.parse(fs.readFileSync(dir+'/settings.json'));
-const opts=Object.assign({},info.options,JSON.parse(extra||'{}'));
+const over=JSON.parse(extra||'{}'),sizes=over.sizes||info.learnedDartSizes||[];delete over.sizes;   // {"sizes":[230,230]} = already learnt dart size (square mm)
+const opts=Object.assign({},info.options,over);
 const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required','--allow-file-access-from-files']});
 const pg=await b.newPage({viewport:{width:1400,height:900}});
 pg.on('pageerror',e=>console.log('PAGEERR',e.message));
 pg.on('console',m=>{if(m.text().startsWith('@'))console.log(m.text().slice(1));});
-await pg.addInitScript(`localStorage.clear();localStorage.setItem('oche-cam',${JSON.stringify(JSON.stringify({points:info.calibrationPoints,opts:{...opts,enabled:false}}))});
+await pg.addInitScript(`localStorage.clear();localStorage.setItem('oche-cam',${JSON.stringify(JSON.stringify({points:info.calibrationPoints,opts:{...opts,enabled:false},sizes}))});
   window.__vid=${JSON.stringify('file://'+fs.realpathSync(dir)+'/camera.webm')};
   navigator.mediaDevices.getUserMedia=async()=>{const v=document.createElement('video');v.muted=true;v.src=window.__vid;window.__rv=v;await v.play();return v.captureStream();};
   navigator.mediaDevices.enumerateDevices=async()=>[];`);
