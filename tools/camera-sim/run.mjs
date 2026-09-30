@@ -18,7 +18,7 @@ await pg.evaluate(()=>{
 await pg.evaluate(()=>camStart());
 await pg.waitForTimeout(1500);
 await pg.evaluate(()=>{const C=window.dartsCamera,T=[[0,0],[0,-170],[170,0],[0,170],[-170,0]];
-  C.points=T.map(([bx,by])=>{const [px,py]=SIM.toImg(bx,by);return [px/1280,py/720];});camComputeH();camBuildMask();});
+  C.cal=T.map(([bx,by])=>{const [px,py]=SIM.toImg(bx,by);return {p:[px/1280,py/720],b:[bx,by],t:-1};});camComputeH();camBuildMask();});
 await pg.waitForTimeout(2500);
 const rnd=(()=>{let s=params.seed||7;return()=>{s=(s*16807)%2147483647;return s/2147483647;};})();
 function spot(){for(;;){const r=Math.sqrt(rnd())*168,a=rnd()*2*Math.PI;return [r*Math.sin(a),-r*Math.cos(a)];}}

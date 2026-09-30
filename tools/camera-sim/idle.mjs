@@ -7,6 +7,6 @@ await pg.addInitScript(fs.readFileSync(new URL('./fakecam.js',import.meta.url),'
 await pg.goto('file://'+process.argv[2]);
 await pg.evaluate(()=>{document.querySelector('#setup')?.close?.();newGame({names:['A','B'],start:501,legsToWin:1,doubleOut:true});window.HITS=[];const o=window.registerDart;window.registerDart=(x,y)=>{HITS.push(scoreAt(x,y).label);o(x,y);};});
 await pg.evaluate(()=>camStart());await pg.waitForTimeout(1500);
-await pg.evaluate(()=>{const C=dartsCamera,T=[[0,0],[0,-170],[170,0],[0,170],[-170,0]];C.points=T.map(([bx,by])=>{const [px,py]=SIM.toImg(bx,by);return [px/1280,py/720];});camComputeH();camBuildMask();});
+await pg.evaluate(()=>{const C=dartsCamera,T=[[0,0],[0,-170],[170,0],[0,170],[-170,0]];C.cal=T.map(([bx,by])=>{const [px,py]=SIM.toImg(bx,by);return {p:[px/1280,py/720],b:[bx,by],t:-1};});camComputeH();camBuildMask();});
 for(let i=0;i<30;i++){await pg.evaluate(i=>{SIM.expo=[0,3,-3,6,-2][i%5];if(i%10===5)SIM.hand={x:50,y:50};else SIM.hand=null;},i);await pg.waitForTimeout(2000);}
 console.log('false hits:',JSON.stringify(await pg.evaluate(()=>HITS)));await b.close();
