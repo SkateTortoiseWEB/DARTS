@@ -6,6 +6,8 @@
 //     The cameras move with the board, so calibration stays put.
 //   WALL MOUNT: one arm per camera, screwed to the wall.
 // Camera: 38 x 38 mm OV9732 USB board (DECXIN-1M-2012V1), M2.5 holes on a 34 mm square, M12 lens.
+// Lens (maker's drawing): 2.84 mm, F2.0, field of view 65.1 deg across, 51.2 deg up/down, 77.3 deg diagonal;
+// 13 mm square holder, lens top 9.6 mm above the board's front.
 //
 // Parts (set `part` below, or on the command line: openscad -D 'part="case_tub"' -o case_tub.stl camera-mount.scad)
 //   "case_tub"   back of the camera case: holds the board, cable exit, vents, tilt hinge tongue
@@ -40,7 +42,7 @@ show_env             = true; // board_assembly preview: show the wall and foam s
 /* ---------- board mount: measure these ---------- */
 board_d     = 451;   // dartboard diameter (Blade 6: 451)
 board_t     = 38;    // dartboard thickness, front to back (Blade 6: about 38)
-cam_r       = 300;   // camera distance from the bull: 300 for the lens the OV9732 comes with, 260-280 for a 2.1 mm lens
+cam_r       = 300;   // camera distance from the bull: 300 for the OV9732's own 65 deg lens (sees the doubles ring with ~20 mm spare each side), 260-280 for a 2.1 mm lens
 screw_d     = 6.5;   // hole for the board's centre screw
 hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
 hub_t       = 10;    // hub thickness: the board sits this much further from the wall
@@ -52,7 +54,7 @@ split_r     = 165;   // where the two arm halves join
 pcb      = 38;     // board is pcb x pcb
 pcb_t    = 1.6;
 hole_sp  = 34;     // mounting holes are on a hole_sp square
-holder   = 13;     // square lens holder on the front
+holder   = 13;     // square lens holder on the front (8 mm tall; lens top 9.6 mm, so it stands 3 mm proud of the lid)
 front_gap = 4;     // space between board front and lid (parts + lens holder screw ears)
 back_gap  = 7;     // space behind the board (the connector sticks out 5.1 mm)
 

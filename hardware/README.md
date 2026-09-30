@@ -1,7 +1,9 @@
 # Camera mounts
 
 Three cameras, each with its own light, around the dartboard. Designed for a Winmau Blade 6 on its Winmau bracket,
-with the 38 × 38 mm OV9732 USB camera board (DECXIN-1M-2012V1: M2.5 holes on a 34 mm square, M12 lens).
+with the 38 × 38 mm OV9732 USB camera board (DECXIN-1M-2012V1: M2.5 holes on a 34 mm square, 13 mm lens holder,
+2.84 mm lens seeing 65° across and 51° up and down). Many "100°" OV9732 listings use this same board and lens;
+check the hole spacing (34 mm) when yours arrive.
 
 There are two ways to hold the cameras. Both use the same camera case.
 
@@ -62,7 +64,8 @@ At the top of `camera-mount.scad`:
 
 - `board_t` (38): the board's thickness, front to back
 - `lens_above_face` (40): how far in front of the board's face the lenses sit
-- `cam_r` (300): camera distance from the bull. 300 suits the lens the OV9732 comes with (about 68° across); with a
+- `cam_r` (300): camera distance from the bull. 300 suits the lens the OV9732 comes with (65° across: it sees
+  the doubles ring with about 20 mm to spare on each side); with a
   2.1 mm lens (about 85° across) 260-280 gives a sharper view
 - `screw_d` (6.5): the hole for the board's centre screw
 
