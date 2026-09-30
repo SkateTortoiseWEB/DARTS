@@ -70,6 +70,26 @@ Export a part with, for example, `openscad -D 'part="hub"' -o stl/board-mount/hu
 Parts: `hub`, `arm_inner`, `arm_outer`, `splice`, `case_tub`, `case_lid`, `wall_arm`; previews `board_assembly`,
 `print_board`, `assembly`, `print_all`.
 
+## Mini model (1:4, to try it out)
+
+![mini](preview-mini.png)
+
+A desk-sized version of the board mount, to look at and tinker with before printing the real thing
+(`mini-model.scad`, STLs in `stl/mini/`). Simplified so it prints well: no screws, the board sits on a peg in the middle
+of the frame and turns on it, and each camera tilts on a hinge pin cut from 1.75 mm filament.
+
+| File | How many | Size | Rough print time (Ender 3 SE) |
+|---|---|---|---|
+| `mini_board.stl` | 1 | 113 mm across | 1.5-2 h (0.12-0.16 mm layers for crisp numbers) |
+| `mini_frame.stl` | 1 | 120 × 138 mm | about 1 h |
+| `mini_camera.stl` | 3 | 11 × 20 mm | about 15 min each |
+| `mini_surround.stl` | 1, optional | 175 mm across | 2-3 h |
+
+PLA is fine, 3 walls, 20 % infill, no supports. To put it together: push the board onto the frame's peg, cut three
+short pieces of filament, push each through a fork and its camera's hinge tongue, and tilt the cameras towards the
+board. If a pin is loose, change `pin_d` to 1.85 and reprint the camera. The engraved rings and raised numbers make
+the board easy to paint.
+
 ## Wall mount
 
 ![assembled](preview-assembly.png)
