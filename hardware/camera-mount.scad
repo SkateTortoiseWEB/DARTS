@@ -11,7 +11,7 @@
 //
 // Parts (set `part` below, or on the command line: openscad -D 'part="case_tub"' -o case_tub.stl camera-mount.scad)
 //   "case_tub"   back of the camera case: holds the board, cable exit, vents, tilt hinge tongue
-//   "case_lid"   front of the case: lens opening and the plate the light is strapped to
+//   "case_lid"   front of the case: lens opening and the light tray above it (up to three 8 mm COB LED strip pieces)
 //   "wall_arm"   one piece: plate that screws to the wall + column + tilt fork. The screw slots let it turn
 //                about 12 degrees either way, so point the arrow at the bull before tightening
 //   "assembly"   wall mount put together, for looking at (don't print this)
@@ -29,6 +29,8 @@
 // Wall mount hardware: 4 x M2.5 x 12 screws (board, self-tapping into the tub),
 //   1 x M3 x 20 bolt + nut (tilt), 2 x pan-head wood screws ~4 x 30 + washers + wall plugs.
 // Put the board in the case with its USB connector towards the side with the cable slot (+x).
+// Cables: the camera's USB cable leaves the case on one side and the light's USB lead leaves the light tray on the other;
+//   on the board mount each runs down its own side of the column and arm in snap-in clips (push the cable in from the side).
 // Print in PETG or ASA, 4 walls, 40 % infill, no supports needed in the orientations "print_all" uses.
 
 part = "assembly";
@@ -58,9 +60,21 @@ holder   = 13;     // square lens holder on the front (8 mm tall; lens top 9.6 m
 front_gap = 4;     // space between board front and lid (parts + lens holder screw ears)
 back_gap  = 7;     // space behind the board (the connector sticks out 5.1 mm)
 
-/* ---------- light ---------- */
-light_plate_h = 26;   // height of the plate above the lens that the LED bar is strapped to
-light_plate_w = 46;
+/* ---------- light: a tray above the lens for short pieces of 5 V COB LED strip ---------- */
+light_w     = 56;     // tray width (along the strips)
+light_h     = 32;     // tray height above the case
+light_t     = 4;      // tray thickness
+strip_w     = 8;      // COB strip width (8 mm is the common 320 LEDs/m strip)
+strip_rows  = 3;      // grooves: use the middle one for a single piece, all three for a brighter light
+strip_len   = 43;     // longest piece that fits a groove
+strip_depth = 1.0;    // groove depth; the strip stands a little proud
+strip_pitch = strip_w + 1.4;
+
+/* ---------- cables ---------- */
+cable_d   = 4.4;      // clip hole: fits USB cables up to about 4.4 mm thick
+clip_wall = 1.6;
+clip_gap  = 2.8;      // opening the cable snaps in through
+clip_len  = 8;
 
 /* ---------- general ---------- */
 wall = 2;
@@ -136,11 +150,15 @@ module case_tub() {
 
 /* ---------- case lid (front half + light plate) ---------- */
 module case_lid() {
+  zf = lid_z + lid_t;                       // front face: lid and light tray are flush
+  yc = outer/2 + light_h/2;                 // middle of the tray
+  gx0 = -light_w/2 + 12;                    // where the strip grooves start (the USB end)
   difference() {
     union() {
       translate([0, 0, lid_z]) rbox([outer, outer, lid_t]);
-      // plate above the lens for the LED bar (strap it on with two cable ties)
-      translate([-light_plate_w/2, outer/2 - 2, lid_z]) cube([light_plate_w, light_plate_h + 2, lid_t]);
+      // light tray above the lens: joins the lid at the front, thicker behind where it clears the tub
+      translate([-light_w/2, outer/2 - 2, lid_z]) cube([light_w, light_h + 2, lid_t]);
+      translate([0, outer/2 + clr + .2 + (light_h - clr - .2)/2, zf - light_t]) rbox([light_w, light_h - clr - .2, light_t], r = 3);
       // lip that sits inside the tub so the lid registers
       translate([0, 0, lid_z - 1.5]) rbox([inner - 0.4, inner - 0.4, 1.6], r = 1);
     }
@@ -151,15 +169,46 @@ module case_lid() {
     // screw holes with countersinks
     for (x = [-1, 1], y = [-1, 1]) translate([x*hole_sp/2, y*hole_sp/2, 0]) {
       cylinder(d = 2.9, h = 50, center = true);
-      translate([0, 0, lid_z + lid_t - 1.4]) cylinder(d1 = 2.9, d2 = 5.4, h = 1.41);
+      translate([0, 0, zf - 1.4]) cylinder(d1 = 2.9, d2 = 5.4, h = 1.41);
     }
-    // cable tie slots in the light plate
-    for (x = [-1, 1], y = [outer/2 + 6, outer/2 + light_plate_h - 6])
-      translate([x*(light_plate_w/2 - 6), y, lid_z - 1]) cube([3.2, 5, 10], center = true);
+    // grooves for the strip pieces, USB end at -x
+    for (i = [0:strip_rows - 1]) translate([gx0, yc + (i - (strip_rows - 1)/2)*strip_pitch - (strip_w + .6)/2, zf - strip_depth])
+      cube([strip_len, strip_w + .6, 5]);
+    // channel across the far ends for the short wires that join extra pieces (+ to +, - to -)
+    translate([gx0 + strip_len - 4, yc - (strip_rows - 1)/2*strip_pitch - 3, zf - 1.8]) cube([4, (strip_rows - 1)*strip_pitch + 6, 5]);
+    // pocket for the lump where the USB lead joins the strip, and a notch where the lead leaves the tray
+    translate([-light_w/2 + 2, yc - 5.5, zf - 2.4]) cube([gx0 + light_w/2 - 2 + .01, 11, 5]);
+    translate([-light_w/2 - 1, yc - 2.5, zf - 2.4]) cube([4, 5, 5]);
+    // cable tie slots either side of the pocket: tie the lead down so a tug can't pull the strip off
+    for (y = [-1, 1]) translate([-light_w/2 + 6.5, yc + y*9.5, 0]) cube([3.2, 5, 50], center = true);
   }
   // spacers that clamp the board (sit on the board around its holes)
   for (x = [-1, 1], y = [-1, 1]) translate([x*hole_sp/2, y*hole_sp/2, 0])
     difference() { cylinder(d = 4.4, h = lid_z); cylinder(d = 2.9, h = 50, center = true); }
+}
+// the LED strip pieces, for previews only
+module light_strips(n = strip_rows) {
+  for (i = [0:n - 1]) translate([-light_w/2 + 12.5, outer/2 + light_h/2 + (i - (n - 1)/2)*strip_pitch - strip_w/2, lid_z + lid_t - strip_depth])
+    { color("white") cube([strip_len - 1, strip_w, 1.6]); color("gold") translate([0, strip_w/2 - 1.5, 1.6]) cube([strip_len - 1, 3, .1]); }
+}
+
+/* ---------- cable clips ---------- */
+clip_b = cable_d + 2*clip_wall;             // clip block size
+// clip on the +y side face of an arm (face at y = arm_w/2), running along x, opening towards the board
+module arm_clip(x) {
+  translate([x, arm_w/2, arm_z0]) difference() {
+    translate([-clip_len/2, -.8, 0]) cube([clip_len, clip_b + .8, clip_b]);
+    translate([0, clip_b/2, clip_b/2]) rotate([0, 90, 0]) cylinder(d = cable_d, h = clip_len + 2, center = true);
+    translate([-clip_len/2 - 1, clip_b/2 - clip_gap/2, clip_b/2]) cube([clip_len + 2, clip_gap, clip_b]);
+  }
+}
+// vertical clip on the +y side face of the column, opening outwards; the slope underneath prints without support
+module col_clip(z) {
+  translate([cam_r, col_w/2, 0]) difference() {
+    hull() { translate([-clip_b/2, -.8, z]) cube([clip_b, clip_b + .8, clip_len]); translate([-clip_b/2, -.8, z - clip_b - 1]) cube([clip_b, .8, .01]); }
+    translate([0, clip_b/2, z - clip_b - 2]) cylinder(d = cable_d, h = clip_len + clip_b + 4);
+    translate([-clip_gap/2, clip_b/2, z - clip_b - 2]) cube([clip_gap, clip_b, clip_len + clip_b + 4]);
+  }
 }
 
 /* ---------- wall arm: plate + column + fork, one piece ---------- */
@@ -217,7 +266,10 @@ module hub() {
 module arm_bar(x0, x1) { translate([x0, -arm_w/2, arm_z0]) cube([x1 - x0, arm_w, arm_t]); }
 module nut_pockets(xs, flats, depth) { for (x = xs) translate([x, 0, arm_z0 - .01]) rotate(30) hexnut_pocket(flats, depth); }
 module tie_slots(xs) { for (x = xs) translate([x, 0, arm_z0 + arm_t/2]) cube([3.4, 6, arm_t + 2], center = true); }
+arm_inner_clips = [101, 128];                              // outside the hub, clear of the splice
+arm_outer_clips = [200, 228, 256];
 module arm_inner() {
+  for (m = [0, 1]) mirror([0, m, 0]) for (x = arm_inner_clips) arm_clip(x);
   difference() {
     arm_bar(40, split_r);
     for (x = arm_bolts) translate([x, 0, 0]) cylinder(d = 4.5, h = 60, center = true);
@@ -229,6 +281,8 @@ module arm_inner() {
 }
 module arm_outer() {
   x1 = cam_r + col_d/2;
+  // cable clips: camera cable down one side, light lead down the other
+  for (m = [0, 1]) mirror([0, m, 0]) { for (x = arm_outer_clips) arm_clip(x); for (z = [b_col_top - 30, b_col_top - 13]) col_clip(z); }
   difference() {
     union() {
       arm_bar(split_r, x1);
@@ -268,16 +322,16 @@ module board_assembly() {
   for (a = [0, 120, 240]) rotate(a) {
     color("orange") { arm_inner(); arm_outer(); } color("gold") splice();
     translate([cam_r, 0, b_col_top + fork_above]) rotate(-90) rotate([tilt_preview, 0, 0]) rotate([90, 0, 0]) translate([0, -hinge_y, -hinge_z]) {
-      color("steelblue") { case_tub(); case_lid(); }
+      color("steelblue") { case_tub(); case_lid(); } light_strips();
       color("black") { linear_extrude(8) square(holder, center = true); cylinder(d = 14, h = 9.6); }
     }
   }
 }
 module print_board() {   // one hub + one set of arm parts; print the arm parts 3 times
   translate([0, 0, 0]) rotate([180, 0, 0]) hub();
-  translate([-165, -110, -arm_z0]) arm_inner();
-  translate([-175, -140, -arm_z0]) arm_outer();
-  translate([-180, 110, -(arm_z0 + arm_t)]) splice();
+  translate([-165, -115, -arm_z0]) arm_inner();
+  translate([-175, -158, -arm_z0]) arm_outer();
+  translate([-180, 115, -(arm_z0 + arm_t)]) splice();
 }
 
 /* ---------- layouts ---------- */
@@ -288,7 +342,7 @@ module assembly() {
   // the case hangs on the fork: hinge axis x, lens looking along -y (along the wall, where the arrow points),
   // tilted towards the wall by tilt_preview
   translate([0, 0, plate_t + col_h + fork_above]) rotate([tilt_preview, 0, 0]) rotate([90, 0, 0]) translate([0, -hinge_y, -hinge_z]) {
-    color("steelblue") { case_tub(); case_lid(); }
+    color("steelblue") { case_tub(); case_lid(); } light_strips();
     color("darkgreen") translate([0, 0, -pcb_t]) linear_extrude(pcb_t) square(pcb, center = true);
     color("black") { linear_extrude(8) square(holder, center = true); cylinder(d = 14, h = 9.6); }
   }
