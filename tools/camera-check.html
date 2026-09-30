@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera check</title>
+<style>
+:root{--bg:#1d2623;--panel:#26312d;--line:#3a4742;--text:#ecebe4;--muted:#a3aca6;--good:#3fae6a;--bad:#ff6b6b;--warn:#e8c060}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:20px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr) 420px}
+@media (max-width:900px){body{grid-template-columns:1fr}}
+h1{margin:0 0 4px;font-size:22px}h2{font-size:15px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+video{width:100%;background:#000;border-radius:8px;display:block}
+select,button{font:inherit;color:inherit;background:#2f3b36;border:1px solid var(--line);border-radius:999px;padding:7px 14px}
+button{cursor:pointer;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:5px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.verdict{font-size:16px;padding:10px 12px;border-radius:8px;background:#1d2623;margin-top:10px}
+input[type=range]{width:100%}
+.muted{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div>
+  <h1>Camera check</h1>
+  <p class="muted">Shows what a camera can do through the browser, which is exactly what Oche can use: its picture size, frame rate, and which settings can be locked.</p>
+  <div class="row"><select id="cam"><option value="">Default camera</option></select><button id="go">Start</button><span id="size" class="muted"></span></div>
+  <p></p>
+  <video id="v" autoplay playsinline muted></video>
+</div>
+<div class="panel">
+  <h2>What it reports</h2>
+  <table id="t"><tr><td class="muted">Start a camera.</td></tr></table>
+  <div id="verdict"></div>
+  <div id="controls"></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);let stream=null,track=null;
+const NAMES={exposureMode:'Exposure mode',exposureTime:'Exposure time',exposureCompensation:'Exposure compensation',whiteBalanceMode:'White balance mode',colorTemperature:'Colour temperature',
+  focusMode:'Focus mode',focusDistance:'Focus distance',brightness:'Brightness',contrast:'Contrast',saturation:'Saturation',sharpness:'Sharpness',iso:'ISO / gain',zoom:'Zoom',frameRate:'Frame rate',width:'Width',height:'Height',resizeMode:'Resize mode'};
+async function list(){
+  const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+  const sel=$('#cam'),cur=sel.value;sel.innerHTML=devs.map((d,i)=>`<option value="${d.deviceId}">${d.label||'Camera '+(i+1)}</option>`).join('');if(cur)sel.value=cur;
+}
+async function start(){
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  const id=$('#cam').value;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:id?{exact:id}:undefined,width:{ideal:1920},height:{ideal:1080}},audio:false});}
+  catch(e){$('#t').innerHTML=`<tr><td class="bad">Couldn't start the camera: ${e.name}</td></tr>`;return;}
+  $('#v').srcObject=stream;track=stream.getVideoTracks()[0];await list();$('#cam').value=track.getSettings().deviceId||'';
+  setTimeout(report,600);
+}
+function fmt(v){if(v==null)return '';if(Array.isArray(v))return v.join(', ');if(typeof v==='object')return 'min '+(+v.min).toFixed(1)+', max '+(+v.max).toFixed(1)+(v.step?', step '+v.step:'');return typeof v==='number'?(+v.toFixed(2)):String(v);}
+function report(){
+  const caps=track.getCapabilities?track.getCapabilities():{},set=track.getSettings();
+  $('#size').textContent=`${set.width}×${set.height} at ${Math.round(set.frameRate||0)} fps · ${track.label}`;
+  const keys=Object.keys(NAMES).filter(k=>k in caps||k in set);
+  $('#t').innerHTML='<tr><th>Setting</th><th>Now</th><th>Can be set to</th></tr>'+keys.map(k=>`<tr><td>${NAMES[k]}</td><td>${fmt(set[k])}</td><td>${fmt(caps[k])||'<span class="muted">not adjustable</span>'}</td></tr>`).join('');
+  const expOK=(caps.exposureMode||[]).includes('manual')&&caps.exposureTime,wbOK=(caps.whiteBalanceMode||[]).includes('manual');
+  const hd=set.width>=1280;
+  $('#verdict').innerHTML=`<div class="verdict">
+    <div class="${hd?'good':'warn'}">${hd?'✓':'!'} Picture: ${set.width}×${set.height}${hd?'':' (Oche works best at 1280×720 or more)'}</div>
+    <div class="${expOK?'good':'warn'}">${expOK?'✓ Exposure can be locked':'! Exposure can’t be locked from the browser: the camera will keep adjusting brightness itself. Oche copes with that, but steady, bright lighting of your own matters more.'}</div>
+    <div class="${wbOK?'good':'muted'}">${wbOK?'✓ White balance can be locked':'White balance stays automatic.'}</div></div>`;
+  // live controls for whatever can be changed
+  const c=$('#controls');c.innerHTML='';
+  if(expOK){c.innerHTML+=`<p><b>Try it:</b> lock exposure and move the slider. The picture should get darker and brighter.</p>
+    <div class="row"><button id="lockExp">Lock exposure</button><button id="autoExp">Back to automatic</button></div>
+    <input type="range" id="expT" min="${caps.exposureTime.min}" max="${caps.exposureTime.max}" step="${caps.exposureTime.step||1}" value="${set.exposureTime||caps.exposureTime.min}">`;
+    setTimeout(()=>{
+      $('#lockExp').onclick=()=>track.applyConstraints({advanced:[{exposureMode:'manual',exposureTime:+$('#expT').value}]}).then(report).catch(e=>alert(e.message));
+      $('#autoExp').onclick=()=>track.applyConstraints({advanced:[{exposureMode:'continuous'}]}).then(report).catch(e=>alert(e.message));
+      $('#expT').oninput=e=>track.applyConstraints({advanced:[{exposureMode:'manual',exposureTime:+e.target.value}]}).catch(()=>{});
+    });
+  }
+}
+$('#go').onclick=start;$('#cam').onchange=start;
+navigator.mediaDevices?list():$('#t').innerHTML='<tr><td class="bad">This browser can’t use cameras.</td></tr>';
+</script>
+</body>
+</html>
