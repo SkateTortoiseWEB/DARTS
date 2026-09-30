@@ -1,66 +1,88 @@
 # Camera mounts
 
-Three of these, on the wall around the dartboard, each holding one camera and its light.
-The design is for a Winmau Blade 6 on a wall bracket, with the 38 × 38 mm OV9732 USB camera board
-(DECXIN-1M-2012V1: M2.5 holes on a 34 mm square, M12 lens).
+Three cameras, each with its own light, around the dartboard. Designed for a Winmau Blade 6 on its Winmau bracket,
+with the 38 × 38 mm OV9732 USB camera board (DECXIN-1M-2012V1: M2.5 holes on a 34 mm square, M12 lens).
+
+There are two ways to hold the cameras. Both use the same camera case.
+
+- **Board mount (recommended, no holes in the wall):** a hub sits behind the board, held by the board's own centre
+  screw, with three arms that come forward past the board's edge. The cameras move with the board, so calibration
+  stays right even if the board shifts on its bracket.
+- **Wall mount:** one arm per camera, screwed to the wall.
+
+## Board mount
+
+![front](preview-board-front.png) ![back, without the wall and foam](preview-board-back.png)
+
+### Parts
+
+| File | How many | Printed size | Notes |
+|---|---|---|---|
+| `stl/board-mount/hub.stl` | 1 | 180 × 180 × 10 mm | goes between the board and its bracket |
+| `stl/board-mount/arm_inner.stl` | 3 | 125 × 22 × 6 mm | bolts into the hub |
+| `stl/board-mount/arm_outer.stl` | 3 | 143 × 22 × 65 mm | column and tilt fork for the camera |
+| `stl/board-mount/splice.stl` | 3 | 46 × 22 × 4 mm | joins the two arm halves |
+| `stl/case_tub.stl` | 3 | | back of the camera case |
+| `stl/case_lid.stl` | 3 | | front of the case, with the plate the light is strapped to |
+
+![parts](preview-board-parts.png)
+
+Everything fits an Ender 3 / Ender 3 SE bed (220 × 220 mm) and prints flat as exported, without supports.
+
+**Print settings:** PETG if you can (PLA slowly bends under load, and the cameras mustn't move), 0.2 mm layers, 4 walls,
+40 % infill (100 % for the arms if you like), no supports. For the hub, a brim helps it stay flat.
+
+### Hardware
+
+- The board's centre screw, **about 10 mm longer** than the one it came with (the hub is 10 mm thick)
+- Per arm: 2 × **M4 × 16** countersunk bolts + nuts (hub to arm), 4 × **M3 × 12** countersunk bolts + nuts (splice)
+- Per camera: 4 × **M2.5 × 12** screws (board into case), 1 × **M3 × 20** bolt + nut (tilt hinge)
+- Optional: 3 × small wood screws (about 3.5 × 16 mm) through the hub into the back of the board, so the hub can't turn
+- Cable ties for the cables and to strap each light on
+
+### Fitting it
+
+1. Take the board off the wall and look at the back. **The hub goes between the board and whatever the board hangs by.**
+   Remove the centre screw, put the hub against the board (flat side to the board, grooves facing the wall), put the
+   bracket part back on top and fix it all with the longer screw. If your bracket part is held by several screws
+   rather than one, drill matching holes through the hub.
+2. Bolt the three inner arms into the hub's grooves (bolt heads sink into the board side, nuts in the pockets), then
+   the outer arms to the inner arms with a splice plate across each joint (splice on the board side).
+3. **Foam surround:** each column passes through the foam about 300 mm from the bull. Cut a slot about
+   45 × 25 mm through the foam for each one, and a shallow channel in the foam's back for the arm (22 mm wide, 6 mm deep).
+4. Hang the board back up and turn it so the arms point where you want the cameras. Evenly spaced is best:
+   12, 4 and 8 o'clock, or 2, 6 and 10.
+5. Fit the cameras in their cases, hang each case in its fork with the M3 bolt, strap on the lights and run the
+   cables along the arms with cable ties.
+6. In Oche's camera setup, check each camera sees the whole board, then tighten the tilt bolts and calibrate.
+
+### Measure and adjust
+
+At the top of `camera-mount.scad`:
+
+- `board_t` (38): the board's thickness, front to back
+- `lens_above_face` (40): how far in front of the board's face the lenses sit
+- `cam_r` (300): camera distance from the bull. 300 suits the lens the OV9732 comes with (about 68° across); with a
+  2.1 mm lens (about 85° across) 260-280 gives a sharper view
+- `screw_d` (6.5): the hole for the board's centre screw
+
+Export a part with, for example, `openscad -D 'part="hub"' -o stl/board-mount/hub.stl camera-mount.scad`.
+Parts: `hub`, `arm_inner`, `arm_outer`, `splice`, `case_tub`, `case_lid`, `wall_arm`; previews `board_assembly`,
+`print_board`, `assembly`, `print_all`.
+
+## Wall mount
 
 ![assembled](preview-assembly.png)
 
-## Parts (print 3 of each)
+`stl/wall-mount/wall_arm.stl` plus the same camera case. Screw each arm to the wall 300 mm from the bull (evenly
+spaced), with the arrow on the plate pointing at the bull; the curved slots let it turn 12° either way. Set
+`board_face_from_wall` to how far your board's face sits out from the wall. Hardware per arm: the camera and tilt
+parts above, plus 2 pan-head wood screws with washers and wall plugs.
 
-| File | What it is | Print orientation |
-|---|---|---|
-| `stl/case_tub.stl` | back of the camera case: board posts, cable slot, vents, tilt hinge with teeth | as exported (floor down) |
-| `stl/case_lid.stl` | front of the case: lens opening, plate above the lens that the LED light is strapped to | as exported (front face down) |
-| `stl/wall_arm.stl` | wall plate, column and tilt fork in one piece | as exported (plate down) |
+## Camera case assembly
 
-![parts](preview-parts.png)
-
-PETG or ASA (PLA slowly sags, and the cameras mustn't move), 4 walls, 40 % infill. No supports needed.
-
-## Hardware per mount
-
-- 4 × M2.5 × 12 mm screws: hold the board, self-tapping into the case posts
-- 1 × M3 × 20 mm bolt + nut: tilt hinge (the nut sits in the hex pocket on one prong)
-- 2 × pan-head wood screws ~4 × 30 mm, washers and wall plugs
-- 2 small cable ties: strap the LED light to the plate above the lens
-- 1 cable tie: cable strain relief (loop under the cable slot)
-
-## Assembly
-
-1. Set the lens focus first (turn the lens until the board is sharp at about 30 cm), then put the board in the case
-   with its USB connector towards the cable slot.
+1. Focus the lens first (turn it until the board is sharp at about 30 cm), then put the board in the case with its
+   USB connector towards the cable slot.
 2. Lid on, 4 × M2.5 screws through the lid and board into the posts.
 3. Strap the LED light to the plate above the lens, facing the same way as the lens.
-4. Hang the case in the fork with the M3 bolt; leave it loose for now.
-
-## Where to put them
-
-Measure everything from the centre of the bull, along the wall.
-
-- **Distance from the bull:** 300 mm to the centre of each wall plate with the lens that comes with the camera
-  (about 68° across). A 2.1 mm M12 lens (about 85° across) can go closer, 260-280 mm.
-  The Blade 6's edge is at 225 mm, so the mounts sit just outside the board.
-- **Spacing:** evenly round the board, e.g. at 12, 4 and 8 o'clock.
-- **Direction:** the arrow on each plate points at the bull. The screw slots let the plate turn 12° either way,
-  so fit the screws loosely, point the arrow at the bull (a string from the bull helps), then tighten.
-- **Tilt:** about 11° towards the board for 300 mm (13° at 280, 15° at 260). Final adjustment is by eye with the
-  camera view open: the whole board, including the far double ring, must be in the picture. Then tighten the M3 bolt;
-  the teeth hold it.
-
-## Changing the design
-
-`camera-mount.scad` is OpenSCAD; every size is a setting at the top. The ones you're most likely to change:
-
-- `board_face_from_wall` (default 45 mm): measure how far your board's face sits out from the wall.
-- `lens_above_face` (default 40 mm): how far in front of the board face the lens sits.
-- `light_plate_h`, `light_plate_w`: size of the plate the LED is strapped to.
-- `pcb`, `hole_sp`, `holder`: for a different camera board.
-
-Export a part with, for example:
-
-```sh
-openscad -D 'part="wall_arm"' -o stl/wall_arm.stl camera-mount.scad
-```
-
-Parts: `case_tub`, `case_lid`, `wall_arm`, `print_all` (all three laid out), `assembly` (preview only).
+4. Hang the case in the fork with the M3 bolt; the teeth hold the tilt once it's tight.

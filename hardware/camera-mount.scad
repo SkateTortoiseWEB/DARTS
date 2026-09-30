@@ -1,4 +1,10 @@
-// Oche camera + light mount for a wall-hung dartboard (made for a Winmau Blade 6)
+// Oche camera + light mounts for a dartboard (made for a Winmau Blade 6)
+// Two ways to hold the cameras:
+//   BOARD MOUNT (no holes in the wall): a hub sits between the back of the board and its Winmau hanging bracket,
+//     held by the board's own centre screw. Three arms bolt into it, reach out behind the board and come forward
+//     past its edge (through small slots cut in a foam surround) to hold each camera in front of the board.
+//     The cameras move with the board, so calibration stays put.
+//   WALL MOUNT: one arm per camera, screwed to the wall.
 // Camera: 38 x 38 mm OV9732 USB board (DECXIN-1M-2012V1), M2.5 holes on a 34 mm square, M12 lens.
 //
 // Parts (set `part` below, or on the command line: openscad -D 'part="case_tub"' -o case_tub.stl camera-mount.scad)
@@ -6,10 +12,19 @@
 //   "case_lid"   front of the case: lens opening and the plate the light is strapped to
 //   "wall_arm"   one piece: plate that screws to the wall + column + tilt fork. The screw slots let it turn
 //                about 12 degrees either way, so point the arrow at the bull before tightening
-//   "assembly"   everything put together, for looking at (don't print this)
-//   "print_all"  all three parts laid out for printing
+//   "assembly"   wall mount put together, for looking at (don't print this)
+//   "print_all"  wall mount: case + wall arm laid out for printing
+// Board mount parts (print 1 hub, 3 of everything else):
+//   "hub"        backplate disc, 180 mm: fits a 220 mm printer bed
+//   "arm_inner"  inner half of an arm (bolts into the hub)
+//   "arm_outer"  outer half: column and tilt fork for the camera case
+//   "splice"     small plate that joins the two arm halves (goes on the board side)
+//   "board_assembly"  the whole board mount put together, for looking at
+//   "print_board"     one hub + one set of arm parts laid out (each also fits the bed on its own)
 //
-// Hardware per mount: 4 x M2.5 x 12 screws (board, self-tapping into the tub),
+// Board mount hardware: the board's centre screw, about 10 mm longer than now; per arm 2 x M4 x 16 countersunk bolts + nuts,
+//   4 x M3 x 12 countersunk bolts + nuts (splice); optional 3 x wood screws 3.5 x 16 to stop the hub turning.
+// Wall mount hardware: 4 x M2.5 x 12 screws (board, self-tapping into the tub),
 //   1 x M3 x 20 bolt + nut (tilt), 2 x pan-head wood screws ~4 x 30 + washers + wall plugs.
 // Put the board in the case with its USB connector towards the side with the cable slot (+x).
 // Print in PETG or ASA, 4 walls, 40 % infill, no supports needed in the orientations "print_all" uses.
@@ -20,6 +35,18 @@ part = "assembly";
 board_face_from_wall = 45;   // how far the dartboard's face sits out from the wall (Blade 6 ~38 mm thick + bracket)
 lens_above_face      = 40;   // how far in front of the board face the lens should be (30-50 works)
 tilt_preview         = 12;   // tilt towards the board in the assembly preview only, degrees
+show_env             = true; // board_assembly preview: show the wall and foam surround
+
+/* ---------- board mount: measure these ---------- */
+board_d     = 451;   // dartboard diameter (Blade 6: 451)
+board_t     = 38;    // dartboard thickness, front to back (Blade 6: about 38)
+cam_r       = 300;   // camera distance from the bull: 300 for the lens the OV9732 comes with, 260-280 for a 2.1 mm lens
+screw_d     = 6.5;   // hole for the board's centre screw
+hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
+hub_t       = 10;    // hub thickness: the board sits this much further from the wall
+arm_w       = 22;    // arm width
+arm_t       = 6;     // arm thickness (sits in grooves in the hub, flush with its wall side)
+split_r     = 165;   // where the two arm halves join
 
 /* ---------- camera board ---------- */
 pcb      = 38;     // board is pcb x pcb
@@ -159,6 +186,98 @@ module wall_arm() {
   for (s = [-1, 1]) translate([s*fork_gap/2, 0, plate_t + col_h + fork_above]) rotate([0, -s*90, 0]) rosette(2.2, 5.8);
 }
 
+/* ---------- board mount ---------- */
+// coordinates: x = out from the bull, z = 0 at the back of the dartboard, + towards the front, - towards the wall
+lens_z = board_t + lens_above_face;                       // camera lens height in front of the board's back
+b_col_top = lens_z - fork_above - (-hinge_y);             // top of the column the fork sits on
+assert(cam_r - col_d/2 > board_d/2 + 3, "cam_r puts the column into the board: make it bigger");
+arm_z0 = -hub_t;                                          // arms: wall-side face flush with the hub's
+module m4_cs(){ cylinder(d = 4.5, h = 60, center = true); translate([0, 0, -2.6]) cylinder(d1 = 4.5, d2 = 9, h = 2.61); }   // countersink opening at z = 0
+module m3_cs(){ cylinder(d = 3.4, h = 60, center = true); translate([0, 0, -1.8]) cylinder(d1 = 3.4, d2 = 6.6, h = 1.81); }
+arm_bolts = [55, 80];                                     // hub-to-arm bolts, distance from the bull
+splice_bolts = [split_r - 16, split_r - 6, split_r + 6, split_r + 16];
+
+module hub() {
+  difference() {
+    translate([0, 0, -hub_t]) cylinder(d = hub_d, h = hub_t, $fn = 120);
+    cylinder(d = screw_d, h = 60, center = true);                     // the board's centre screw
+    for (a = [0, 120, 240]) rotate(a) {
+      translate([40, -(arm_w + 2*clr)/2, -hub_t - 1]) cube([hub_d, arm_w + 2*clr, arm_t + 1]);   // arm groove
+      for (x = arm_bolts) translate([x, 0, 0]) m4_cs();             // bolt heads sink into the board side
+    }
+    for (a = [60, 180, 300]) rotate(a) {
+      translate([62, 0, 0]) cylinder(d = 26, h = 60, center = true); // lighten
+      translate([28, 0, 0]) { cylinder(d = 3.8, h = 60, center = true);   // optional wood screw into the board's back
+        translate([0, 0, -hub_t - .01]) cylinder(d1 = 7.5, d2 = 3.8, h = 2.2); }
+    }
+  }
+}
+module arm_bar(x0, x1) { translate([x0, -arm_w/2, arm_z0]) cube([x1 - x0, arm_w, arm_t]); }
+module nut_pockets(xs, flats, depth) { for (x = xs) translate([x, 0, arm_z0 - .01]) rotate(30) hexnut_pocket(flats, depth); }
+module tie_slots(xs) { for (x = xs) translate([x, 0, arm_z0 + arm_t/2]) cube([3.4, 6, arm_t + 2], center = true); }
+module arm_inner() {
+  difference() {
+    arm_bar(40, split_r);
+    for (x = arm_bolts) translate([x, 0, 0]) cylinder(d = 4.5, h = 60, center = true);
+    nut_pockets(arm_bolts, 7.2, 3.4);
+    for (x = [splice_bolts[0], splice_bolts[1]]) translate([x, 0, 0]) cylinder(d = 3.4, h = 60, center = true);
+    nut_pockets([splice_bolts[0], splice_bolts[1]], 5.8, 2.6);
+    tie_slots([112, 135]);
+  }
+}
+module arm_outer() {
+  x1 = cam_r + col_d/2;
+  difference() {
+    union() {
+      arm_bar(split_r, x1);
+      // column up past the board's edge, braced to the arm
+      translate([cam_r - col_d/2, -col_w/2, arm_z0]) cube([col_d, col_w, b_col_top - arm_z0 + .01]);
+      hull() { translate([cam_r - col_d/2 - 26, -arm_w/2, arm_z0]) cube([1, arm_w, arm_t]); translate([cam_r - col_d/2 - .01, -col_w/2, arm_z0]) cube([1, col_w, 30]); }
+    }
+    for (x = [splice_bolts[2], splice_bolts[3]]) translate([x, 0, 0]) cylinder(d = 3.4, h = 60, center = true);
+    nut_pockets([splice_bolts[2], splice_bolts[3]], 5.8, 2.6);
+    tie_slots([205, 235]);
+  }
+  // tilt fork on top; hinge axis runs round the board (y), so the camera looks in towards the bull (-x)
+  translate([cam_r, 0, b_col_top]) rotate(-90) difference() {
+    union() for (s = [-1, 1]) translate([s*(fork_gap/2 + fork_w/2), 0, 0]) {
+      translate([-fork_w/2, -col_d/2, 0]) cube([fork_w, col_d, fork_above]);
+      translate([0, 0, fork_above]) rotate([0, 90, 0]) cylinder(d = col_d, h = fork_w, center = true);
+    }
+    translate([0, 0, fork_above]) rotate([0, 90, 0]) cylinder(d = 3.4, h = 50, center = true);
+    translate([fork_gap/2 + fork_w - 2.4, 0, fork_above]) rotate([0, 90, 0]) rotate(30) hexnut_pocket(5.8, 5);
+  }
+  translate([cam_r, 0, b_col_top + fork_above]) rotate(-90) for (s = [-1, 1]) translate([s*fork_gap/2, 0, 0]) rotate([0, -s*90, 0]) rosette(2.2, 5.8);
+}
+// joins the two halves; sits in the gap between the arm and the back of the board, bolt heads flush on the board side
+module splice() {
+  difference() {
+    translate([split_r - 23, -arm_w/2, arm_z0 + arm_t]) cube([46, arm_w, hub_t - arm_t - .4]);
+    for (x = splice_bolts) translate([x, 0, 0]) m3_cs();
+  }
+}
+module board_assembly() {
+  if (show_env) color("gainsboro", .35) translate([0, 0, -hub_t - 14]) cylinder(d = 760, h = 1, $fn = 120);    // wall
+  if (show_env) color("dimgray") difference() { cylinder(d = 700, h = board_t + 4, $fn = 120); translate([0, 0, -1]) cylinder(d = board_d + 1, h = 60, $fn = 120);
+    for (a = [0, 120, 240]) rotate(a) translate([cam_r - col_d/2 - 28, -13, -1]) cube([col_d + 32, 26, 60]); }   // foam surround, slots cut for the arms
+  color("#1b1b1b") cylinder(d = board_d, h = board_t, $fn = 120);
+  color("#efdfb9") translate([0, 0, board_t]) cylinder(r = 170, h = .6, $fn = 120);
+  color("orange") hub();
+  for (a = [0, 120, 240]) rotate(a) {
+    color("orange") { arm_inner(); arm_outer(); } color("gold") splice();
+    translate([cam_r, 0, b_col_top + fork_above]) rotate(-90) rotate([tilt_preview, 0, 0]) rotate([90, 0, 0]) translate([0, -hinge_y, -hinge_z]) {
+      color("steelblue") { case_tub(); case_lid(); }
+      color("black") { linear_extrude(8) square(holder, center = true); cylinder(d = 14, h = 9.6); }
+    }
+  }
+}
+module print_board() {   // one hub + one set of arm parts; print the arm parts 3 times
+  translate([0, 0, 0]) rotate([180, 0, 0]) hub();
+  translate([-165, -110, -arm_z0]) arm_inner();
+  translate([-175, -140, -arm_z0]) arm_outer();
+  translate([-180, 110, -(arm_z0 + arm_t)]) splice();
+}
+
 /* ---------- layouts ---------- */
 module assembly() {
   // wall is the z = 0 plane; the arm sticks straight out along +z
@@ -181,5 +300,11 @@ module print_all() {
 if (part == "case_tub") translate([0, 0, -tub_floor_z]) case_tub();
 else if (part == "case_lid") translate([0, 0, lid_z + lid_t]) rotate([180, 0, 0]) case_lid();
 else if (part == "wall_arm") wall_arm();
+else if (part == "hub") rotate([180, 0, 0]) hub();                       // board side down
+else if (part == "arm_inner") translate([0, 0, -arm_z0]) arm_inner();
+else if (part == "arm_outer") translate([0, 0, -arm_z0]) arm_outer();
+else if (part == "splice") translate([0, 0, -(arm_z0 + arm_t)]) splice();
+else if (part == "board_assembly") board_assembly();
+else if (part == "print_board") print_board();
 else if (part == "print_all") print_all();
 else assembly();
