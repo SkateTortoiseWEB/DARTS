@@ -30,7 +30,7 @@
 //   1 x M3 x 20 bolt + nut (tilt), 2 x pan-head wood screws ~4 x 30 + washers + wall plugs.
 // Put the board in the case with its USB connector towards the side with the cable slot (+x).
 // Cables: the camera's USB cable leaves the case on one side and the light's USB lead leaves the light tray on the other;
-//   on the board mount each runs down its own side of the column and arm in snap-in clips (push the cable in from the side).
+//   on the board mount each runs down its own side: snap-in clips on the column, open cradles plus a cable tie on the arm.
 // Print in PETG or ASA, 4 walls, 40 % infill, no supports needed in the orientations "print_all" uses.
 
 part = "assembly";
@@ -74,7 +74,7 @@ strip_pitch = strip_w + 1.4;
 cable_d   = 4.4;      // clip hole: fits USB cables up to about 4.4 mm thick
 clip_wall = 1.6;
 clip_gap  = 2.8;      // opening the cable snaps in through
-clip_len  = 8;
+clip_len  = 10;
 
 /* ---------- general ---------- */
 wall = 2;
@@ -194,14 +194,19 @@ module light_strips(n = strip_rows) {
 
 /* ---------- cable clips ---------- */
 clip_b = cable_d + 2*clip_wall;             // clip block size
-// clip on the +y side face of an arm (face at y = arm_w/2), running along x, opening towards the board
+// cable cradle on the +y side face of an arm (face at y = arm_w/2), running along x. Open at the top, nothing flexes:
+// printed flat, a snap-in clip's lips would bend across the layer lines and snap off. The cable lies in it and a
+// cable tie through the slot in the arm goes under, round the cradle and over the cable.
+cradle_h = arm_t;                           // flush with the arm (cable_d + clip_wall must stay <= arm_t)
 module arm_clip(x) {
   translate([x, arm_w/2, arm_z0]) difference() {
-    translate([-clip_len/2, -.8, 0]) cube([clip_len, clip_b + .8, clip_b]);
-    translate([0, clip_b/2, clip_b/2]) rotate([0, 90, 0]) cylinder(d = cable_d, h = clip_len + 2, center = true);
-    translate([-clip_len/2 - 1, clip_b/2 - clip_gap/2, clip_b/2]) cube([clip_len + 2, clip_gap, clip_b]);
+    translate([-clip_len/2, -.8, 0]) cube([clip_len, cable_d + .2 + 2 + .8, cradle_h]);
+    hull() { translate([0, (cable_d + .2)/2, clip_wall + cable_d/2]) rotate([0, 90, 0]) cylinder(d = cable_d + .2, h = clip_len + 2, center = true);
+             translate([-clip_len/2 - 1, 0, clip_wall + cable_d/2]) cube([clip_len + 2, cable_d + .2, cradle_h]); }
   }
 }
+// slot for the cable tie, through the arm beside each cradle
+module arm_clip_tie(x) { translate([x, arm_w/2 - 2, arm_z0 + arm_t/2]) cube([4.2, 2, arm_t + 2], center = true); }
 // vertical clip on the +y side face of the column, opening outwards; the slope underneath prints without support
 module col_clip(z) {
   translate([cam_r, col_w/2, 0]) difference() {
@@ -272,6 +277,7 @@ module arm_inner() {
   for (m = [0, 1]) mirror([0, m, 0]) for (x = arm_inner_clips) arm_clip(x);
   difference() {
     arm_bar(40, split_r);
+    for (m = [0, 1]) mirror([0, m, 0]) for (x = arm_inner_clips) arm_clip_tie(x);
     for (x = arm_bolts) translate([x, 0, 0]) cylinder(d = 4.5, h = 60, center = true);
     nut_pockets(arm_bolts, 7.2, 3.4);
     for (x = [splice_bolts[0], splice_bolts[1]]) translate([x, 0, 0]) cylinder(d = 3.4, h = 60, center = true);
@@ -293,6 +299,7 @@ module arm_outer() {
     for (x = [splice_bolts[2], splice_bolts[3]]) translate([x, 0, 0]) cylinder(d = 3.4, h = 60, center = true);
     nut_pockets([splice_bolts[2], splice_bolts[3]], 5.8, 2.6);
     tie_slots([205, 235]);
+    for (m = [0, 1]) mirror([0, m, 0]) for (x = arm_outer_clips) arm_clip_tie(x);
   }
   // tilt fork on top; hinge axis runs round the board (y), so the camera looks in towards the bull (-x)
   translate([cam_r, 0, b_col_top]) rotate(-90) difference() {
