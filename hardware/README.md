@@ -39,9 +39,10 @@ Everything fits an Ender 3 / Ender 3 SE bed (220 × 220 mm) and prints flat as e
 ### Hardware
 
 - The board's centre screw, **about 10 mm longer** than the one it came with (the hub is 10 mm thick)
-- Per arm: 2 × **M4 × 16** countersunk bolts + nuts (hub to arm), 4 × **M3 × 12** countersunk bolts + nuts (splice)
-- Per camera: 4 × **M2.5 × 12** screws (board into case), 1 × **M3 × 20** bolt + nut (tilt hinge)
-- Optional: 3 × small wood screws (about 3.5 × 16 mm) through the hub into the back of the board, so the hub can't turn
+- Per arm: 2 × **M4 × 10** countersunk bolts + nuts (hub to arm), 4 × **M3 × 10** countersunk bolts + nuts (splice).
+  Don't go longer: these finish flush with the wall side of the arm, and longer ones would stick out towards the wall
+- Per camera: 4 × **M2.5 × 12** countersunk screws (board into case), 1 × **M3 × 20** bolt + nut (tilt hinge)
+- Optional: 3 × small wood screws (about 3.5 × 20 mm) through the hub into the back of the board, so the hub can't turn
 - Per light: a short piece of 5 V USB COB LED strip, 8 mm wide (see [Light](#light))
 - Small cable ties, up to 3.6 mm wide: about 33 (10 per arm for the cables, 1 per light)
 

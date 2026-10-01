@@ -24,8 +24,8 @@
 //   "board_assembly"  the whole board mount put together, for looking at
 //   "print_board"     one hub + one set of arm parts laid out (each also fits the bed on its own)
 //
-// Board mount hardware: the board's centre screw, about 10 mm longer than now; per arm 2 x M4 x 16 countersunk bolts + nuts,
-//   4 x M3 x 12 countersunk bolts + nuts (splice); optional 3 x wood screws 3.5 x 16 to stop the hub turning.
+// Board mount hardware: the board's centre screw, about 10 mm longer than now; per arm 2 x M4 x 10 countersunk bolts + nuts,
+//   4 x M3 x 10 countersunk bolts + nuts (splice); optional 3 x wood screws 3.5 x 20 to stop the hub turning.
 // Wall mount hardware: 4 x M2.5 x 12 screws (board, self-tapping into the tub),
 //   1 x M3 x 20 bolt + nut (tilt), 2 x pan-head wood screws ~4 x 30 + washers + wall plugs.
 // Put the board in the case with its USB connector towards the side with the cable slot (+x).
