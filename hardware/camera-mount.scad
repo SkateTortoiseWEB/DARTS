@@ -26,7 +26,8 @@
 //
 // Board mount hardware: the board's centre screw, about 10 mm longer than now; per arm 2 x M4 x 10 countersunk bolts + nuts,
 //   4 x M3 x 10 countersunk bolts + nuts (splice); optional 3 x wood screws 3.5 x 20 to stop the hub turning.
-// Wall mount hardware: 4 x M2.5 x 12 screws (board, self-tapping into the tub),
+// Camera: 4 x M2 x 12 countersunk screws per case (through the lid and board, self-tapping into the tub's posts).
+// Wall mount hardware:
 //   1 x M3 x 20 bolt + nut (tilt), 2 x pan-head wood screws ~4 x 30 + washers + wall plugs.
 // Put the board in the case with its USB connector towards the side with the cable slot (+x).
 // Cables: the camera's USB cable leaves the case on one side and the light's USB lead leaves the light tray on the other;
@@ -59,6 +60,10 @@ hole_sp  = 34;     // mounting holes are on a hole_sp square
 holder   = 13;     // square lens holder on the front (8 mm tall; lens top 9.6 mm, so it stands 3 mm proud of the lid)
 front_gap = 4;     // space between board front and lid (parts + lens holder screw ears)
 back_gap  = 7;     // space behind the board (the connector sticks out 5.1 mm)
+// screws that hold the board: M2 (the board's 2.55 mm holes take M2 or M2.5)
+screw_pilot = 1.6;   // hole in the posts the screws self-tap into (M2.5: 2.1)
+screw_clear = 2.4;   // hole through the lid (M2.5: 2.9)
+screw_head  = 4.2;   // countersink for the head (M2.5: 5.4)
 
 /* ---------- light: a tray above the lens for short pieces of 5 V COB LED strip ---------- */
 light_w     = 56;     // tray width (along the strips)
@@ -136,9 +141,9 @@ module case_tub() {
     // tilt bolt hole
     translate([0, hinge_y, hinge_z]) rotate([0, 90, 0]) cylinder(d = 3.4, h = 20, center = true);
   }
-  // posts the board sits on; M2.5 screws self-tap into them
+  // posts the board sits on; the screws self-tap into them
   for (x = [-1, 1], y = [-1, 1]) translate([x*hole_sp/2, y*hole_sp/2, tub_floor_z + wall - 0.01])
-    difference() { cylinder(d = 4.4, h = back_gap + 0.01); cylinder(d = 2.1, h = 50); }
+    difference() { cylinder(d = 4.4, h = back_gap + 0.01); cylinder(d = screw_pilot, h = 50); }
   // teeth on both faces of the tongue
   for (s = [-1, 1]) translate([s*tongue_t/2, hinge_y, hinge_z]) rotate([0, s*90, 0]) rosette(2.2, 5.8);
   // cable tie anchor under the cable exit (strain relief)
@@ -168,8 +173,8 @@ module case_lid() {
     translate([0, 0, lid_z - 5]) linear_extrude(20) square(holder + 1, center = true);
     // screw holes with countersinks
     for (x = [-1, 1], y = [-1, 1]) translate([x*hole_sp/2, y*hole_sp/2, 0]) {
-      cylinder(d = 2.9, h = 50, center = true);
-      translate([0, 0, zf - 1.4]) cylinder(d1 = 2.9, d2 = 5.4, h = 1.41);
+      cylinder(d = screw_clear, h = 50, center = true);
+      translate([0, 0, zf - (screw_head - screw_clear)/2]) cylinder(d1 = screw_clear, d2 = screw_head, h = (screw_head - screw_clear)/2 + .01);
     }
     // grooves for the strip pieces, USB end at -x
     for (i = [0:strip_rows - 1]) translate([gx0, yc + (i - (strip_rows - 1)/2)*strip_pitch - (strip_w + .6)/2, zf - strip_depth])
@@ -184,7 +189,7 @@ module case_lid() {
   }
   // spacers that clamp the board (sit on the board around its holes)
   for (x = [-1, 1], y = [-1, 1]) translate([x*hole_sp/2, y*hole_sp/2, 0])
-    difference() { cylinder(d = 4.4, h = lid_z); cylinder(d = 2.9, h = 50, center = true); }
+    difference() { cylinder(d = 4.4, h = lid_z); cylinder(d = screw_clear, h = 50, center = true); }
 }
 // the LED strip pieces, for previews only
 module light_strips(n = strip_rows) {

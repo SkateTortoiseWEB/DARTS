@@ -41,7 +41,7 @@ Everything fits an Ender 3 / Ender 3 SE bed (220 × 220 mm) and prints flat as e
 - The board's centre screw, **about 10 mm longer** than the one it came with (the hub is 10 mm thick)
 - Per arm: 2 × **M4 × 10** countersunk bolts + nuts (hub to arm), 4 × **M3 × 10** countersunk bolts + nuts (splice).
   Don't go longer: these finish flush with the wall side of the arm, and longer ones would stick out towards the wall
-- Per camera: 4 × **M2.5 × 12** countersunk screws (board into case), 1 × **M3 × 20** bolt + nut (tilt hinge)
+- Per camera: 4 × **M2 × 12** countersunk screws (board into case; they self-tap into the posts, no nuts), 1 × **M3 × 20** bolt + nut (tilt hinge)
 - Optional: 3 × small wood screws (about 3.5 × 20 mm) through the hub into the back of the board, so the hub can't turn
 - Per light: a short piece of 5 V USB COB LED strip, 8 mm wide (see [Light](#light))
 - Small cable ties, up to 3.6 mm wide: about 33 (10 per arm for the cables, 1 per light)
@@ -143,7 +143,8 @@ parts above, plus 2 pan-head wood screws with washers and wall plugs.
 
 1. Focus the lens first (turn it until the board is sharp at about 30 cm), then put the board in the case with its
    USB connector towards the cable slot.
-2. Lid on, 4 × M2.5 screws through the lid and board into the posts.
+2. Lid on, 4 × M2 × 12 countersunk screws through the lid and board into the posts. Snug, not tight: they cut
+   their own thread in the plastic.
 3. Stick the LED strip in the lid's light tray (see [Light](#light)).
 4. Hang the case in the fork with the M3 bolt; the teeth hold the tilt once it's tight.
 5. Cable-tie the camera cable to the anchor under the case's cable slot.
