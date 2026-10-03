@@ -53,6 +53,7 @@ cam_r       = 300;   // camera distance from the bull: 300 for the OV9732's own 
 bracket_w     = 56;  // opening width: the bracket's width plus a few mm (Winmau bracket: 48)
 bracket_above = 18;  // opening reaches this far above the screw (Winmau bracket: 10.75 above the screw's centre)
 bracket_below = 42;  // and this far below it (Winmau bracket: 24.75 below, plus ~11 for the drop when you hang the board)
+nail_d        = 1.6; // holes for the board's stabiliser nails: snug, so the hub can't shift (small holes print a bit undersize)
 hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
 hub_t       = 10;    // the gap between the back of the board and the wall when it hangs (measure it: 10 on a Winmau bracket)
 arm_w       = 22;    // arm width
@@ -281,8 +282,8 @@ module hub() {
     // holes for the board's stabiliser nails (or small pins): they stop the hub turning on the back of the board.
     // Heads sink into the wall side.
     for (p = [[60, 60], [300, 60], [180, 75]]) rotate(p[0]) translate([p[1], 0, 0]) {
-      cylinder(d = 2.4, h = 60, center = true);
-      translate([0, 0, -hub_t - .01]) cylinder(d = 5.5, h = 1.6);
+      cylinder(d = nail_d, h = 60, center = true);
+      translate([0, 0, -hub_t - .01]) cylinder(d = 4.5, h = 1.6);
     }
   }
 }
