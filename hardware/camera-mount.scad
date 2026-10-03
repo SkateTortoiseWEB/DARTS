@@ -51,8 +51,8 @@ cam_r       = 300;   // camera distance from the bull: 300 for the OV9732's own 
 // of the board's rubber stabilisers. The board hangs on its own screw and wall bracket exactly as before: both pass
 // through the opening in the middle of the hub. Measure your wall bracket and set these (hub frame: +x is up, 12 o'clock):
 bracket_w     = 56;  // opening width: the bracket's width plus a few mm (Winmau bracket: 48)
-bracket_above = 18;  // opening reaches this far above the screw (Winmau bracket: 13.5 above the bottom of its slot)
-bracket_below = 42;  // and this far below it (Winmau bracket: 22 below, plus ~14 for the drop when you hang the board)
+bracket_above = 18;  // opening reaches this far above the screw (Winmau bracket: 10.75 above the screw's centre)
+bracket_below = 42;  // and this far below it (Winmau bracket: 24.75 below, plus ~11 for the drop when you hang the board)
 hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
 hub_t       = 10;    // the gap between the back of the board and the wall when it hangs (measure it: 10 on a Winmau bracket)
 arm_w       = 22;    // arm width
@@ -362,7 +362,8 @@ module print_board() {   // one hub + one set of arm parts; print the arm parts 
 /* ---------- the Winmau wall bracket, board and wall: for pictures only ---------- */
 // Wall bracket as measured: 48 wide, 35.5 tall, the screw head rests at the bottom of a slot 22 mm up from its
 // bottom edge. In board-mount coordinates: +x is up, the screw is at the origin, the wall is at z = -hub_t.
-br_w = 48; br_h = 35.5; br_slot = 22; br_t = 6;      // br_t: how far it stands off the wall (a guess; under 10)
+br_w = 48; br_h = 35.5; br_t = 6;                    // br_t: how far it stands off the wall (a guess; under 10)
+br_slot = 22 + 2.75;   // bracket bottom to the screw's centre: 22 to the bottom of the notch, plus half the notch
 module winmau_bracket() {
   translate([0, 0, -hub_t + .05]) difference() {
     union() {
@@ -418,11 +419,11 @@ module bracket_drawing() {
     color("#c8252b") { hull() { translate(p0) cube(.5, center = true); translate(p1) cube(.5, center = true); } }
     color("black") translate((p0 + p1)/2 + off) linear_extrude(1) text(label, size = 3, halign = "center", valign = "center");
   }
-  // in page coordinates: page x = across, page y = up; bracket spans x -24..24, y -22..13.5
-  dim([-24, -27, 8], [24, -27, 8], "48 mm wide", [0, -3.5, 0]);
-  dim([30, -22, 8], [30, 13.5, 8], "35.5 mm tall", [12, 0, 0]);
-  dim([-30, -22, 8], [-30, 0, 8], "22 mm", [-9, 0, 0]);
-  color("black") translate([0, 17.5, 8]) linear_extrude(1) text("slot, open at the top", size = 3, halign = "center");
+  // in page coordinates: page x = across, page y = up; bracket spans x -24..24, y -br_slot..br_h - br_slot
+  dim([-24, -br_slot - 5, 8], [24, -br_slot - 5, 8], "48 mm wide", [0, -3.5, 0]);
+  dim([30, -br_slot, 8], [30, br_h - br_slot, 8], "35.5 mm tall", [12, 0, 0]);
+  dim([-30, -br_slot, 8], [-30, -2.75, 8], "22 mm", [-9, 0, 0]);
+  color("black") translate([0, br_h - br_slot + 4, 8]) linear_extrude(1) text("slot, open at the top", size = 3, halign = "center");
   color("black") translate([-40, 6, 8]) linear_extrude(1) text("screw head rests here", size = 2.6, halign = "center");
   color("#c8252b") hull() { translate([-31, 4.5, 8]) cube(.5, center = true); translate([-5, 0, 8]) cube(.5, center = true); }
 }
