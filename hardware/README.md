@@ -1,6 +1,6 @@
 # Camera mounts
 
-Three cameras, each with its own small LED light, around the dartboard. Designed for a Winmau Blade 6 on its Winmau bracket,
+Three cameras, each with its own small LED light, around the dartboard. Designed for a Winmau Diamond Plus (any standard 451 mm bristle board fits) on its Winmau bracket,
 with the 38 × 38 mm OV9732 USB camera board (DECXIN-1M-2012V1: M2.5 holes on a 34 mm square, 13 mm lens holder,
 2.84 mm lens seeing 65° across and 51° up and down). Many "100°" OV9732 listings use this same board and lens;
 check the hole spacing (34 mm) when yours arrive.

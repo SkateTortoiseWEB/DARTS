@@ -1,4 +1,4 @@
-// Oche camera + light mounts for a dartboard (made for a Winmau Blade 6)
+// Oche camera + light mounts for a dartboard (made for a Winmau Diamond Plus; fits any standard 451 mm bristle board)
 // Two ways to hold the cameras:
 //   BOARD MOUNT (no holes in the wall): a hub sits between the back of the board and its Winmau hanging bracket,
 //     held by the board's own centre screw. Three arms bolt into it, reach out behind the board and come forward
@@ -37,14 +37,14 @@
 part = "assembly";
 
 /* ---------- measure these on your setup ---------- */
-board_face_from_wall = 45;   // how far the dartboard's face sits out from the wall (Blade 6 ~38 mm thick + bracket)
+board_face_from_wall = 45;   // how far the dartboard's face sits out from the wall (a bristle board is about 38 mm thick, plus the bracket)
 lens_above_face      = 40;   // how far in front of the board face the lens should be (30-50 works)
 tilt_preview         = 12;   // tilt towards the board in the assembly preview only, degrees
 show_env             = true; // board_assembly preview: show the wall and foam surround
 
 /* ---------- board mount: measure these ---------- */
-board_d     = 451;   // dartboard diameter (Blade 6: 451)
-board_t     = 38;    // dartboard thickness, front to back (Blade 6: about 38)
+board_d     = 451;   // dartboard diameter (standard bristle boards, Diamond Plus, Blade 6: 451)
+board_t     = 38;    // dartboard thickness, front to back (Diamond Plus, Blade 6: about 38; measure yours)
 cam_r       = 300;   // camera distance from the bull: 300 for the OV9732's own 65 deg lens (sees the doubles ring with ~20 mm spare each side), 260-280 for a 2.1 mm lens
 screw_d     = 6.5;   // hole for the board's centre screw
 hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
