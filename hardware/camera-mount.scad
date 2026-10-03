@@ -50,9 +50,9 @@ cam_r       = 300;   // camera distance from the bull: 300 for the OV9732's own 
 // The hub and arms sit in the gap between the back of the board and the wall (hub_t = that gap) and take the place
 // of the board's rubber stabilisers. The board hangs on its own screw and wall bracket exactly as before: both pass
 // through the opening in the middle of the hub. Measure your wall bracket and set these (hub frame: +x is up, 12 o'clock):
-bracket_w     = 56;  // opening width: the bracket's width plus a few mm
-bracket_above = 16;  // opening reaches this far above the screw
-bracket_below = 50;  // and this far below it
+bracket_w     = 56;  // opening width: the bracket's width plus a few mm (Winmau bracket: 48)
+bracket_above = 18;  // opening reaches this far above the screw (Winmau bracket: 13.5 above the bottom of its slot)
+bracket_below = 42;  // and this far below it (Winmau bracket: 22 below, plus ~14 for the drop when you hang the board)
 hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
 hub_t       = 10;    // the gap between the back of the board and the wall when it hangs (measure it: 10 on a Winmau bracket)
 arm_w       = 22;    // arm width

@@ -64,7 +64,8 @@ Not in the kit:
 
 1. **Measure first:** with the board hanging, the gap between its back and the wall should be 10 mm (it is on a
    Winmau bracket). If yours differs, set `hub_t` to it. Also check your wall bracket fits the hub's opening
-   (56 mm wide, from 16 mm above the screw to 50 mm below it); if not, set `bracket_w`, `bracket_above`,
+   (56 mm wide, from 18 mm above the screw to 42 mm below it: made for the Winmau bracket, 48 × 35.5 mm with
+   the bottom of its slot 22 mm up, with room for the drop as you hang the board); if not, set `bracket_w`, `bracket_above`,
    `bracket_below` and reprint the hub.
 2. Take the board off the wall and pull off its three rubber stabilisers (keep the nails). **Leave the hanging screw
    exactly as it is.** The hub and arms take the stabilisers' place: they fill the 10 mm gap and rest on the wall.
