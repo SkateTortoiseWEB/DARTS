@@ -16,6 +16,11 @@ There are two ways to hold the cameras. Both use the same camera case.
 
 ## Board mount
 
+![on the wall](preview-wall.png)
+![on the wall without the dartboard: the hub around the Winmau bracket](preview-wall-noboard.png)
+
+![the Winmau wall bracket as measured](preview-bracket.png) ![the bracket inside the hub's opening](preview-hub-bracket.png)
+
 ![front](preview-board-front.png) ![back, without the wall and foam](preview-board-back.png)
 
 ### Parts
@@ -98,7 +103,7 @@ At the top of `camera-mount.scad`:
 
 Export a part with, for example, `openscad -D 'part="hub"' -o stl/board-mount/hub.stl camera-mount.scad`.
 Parts: `hub`, `arm_inner`, `arm_outer`, `splice`, `case_tub`, `case_lid`, `wall_arm`; previews `board_assembly`,
-`print_board`, `assembly`, `print_all`.
+`print_board`, `assembly`, `print_all`, `wall_view`, `wall_view_noboard`, `bracket`.
 
 ## Printing
 

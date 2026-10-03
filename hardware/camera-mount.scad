@@ -359,6 +359,74 @@ module print_board() {   // one hub + one set of arm parts; print the arm parts 
   translate([-180, 115, -(arm_z0 + arm_t)]) splice();
 }
 
+/* ---------- the Winmau wall bracket, board and wall: for pictures only ---------- */
+// Wall bracket as measured: 48 wide, 35.5 tall, the screw head rests at the bottom of a slot 22 mm up from its
+// bottom edge. In board-mount coordinates: +x is up, the screw is at the origin, the wall is at z = -hub_t.
+br_w = 48; br_h = 35.5; br_slot = 22; br_t = 6;      // br_t: how far it stands off the wall (a guess; under 10)
+module winmau_bracket() {
+  translate([0, 0, -hub_t + .05]) difference() {
+    union() {
+      translate([-br_slot, -br_w/2, 0]) cube([br_h, br_w, 1.2]);                         // plate on the wall
+      translate([-br_slot + 5, -11, 0]) cube([br_h - 5, 22, br_t]);                     // raised middle the head sits behind
+    }
+    translate([-br_slot + 5 + 1.2, -9.8, -1]) cube([br_h - 5, 19.6, br_t - 1.2 + 1]);   // hollow behind the raised part
+    hull() { cylinder(d = 5.5, h = 30, center = true); translate([30, 0, 0]) cylinder(d = 5.5, h = 30, center = true); }   // slot, open at the top
+    for (y = [-1, 1]) translate([-br_slot + 9, y*17.5, 0]) cylinder(d = 4.5, h = 10, center = true);                       // wall screw holes
+  }
+}
+module board_screw() {   // the board's own 20 mm screw: into the board, head behind the bracket
+  color("silver") { translate([0, 0, -hub_t + 1.4]) cylinder(d = 4.5, h = 20); translate([0, 0, -hub_t + 1.4]) cylinder(d = 9, h = 2.2); }
+}
+module dartboard_look() {   // a dartboard face for pictures: 20 at +x (up), numbers clockwise seen from the front
+  ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+  // annular sector as one polygon (no CSG, so the preview draws it cleanly)
+  module seg(r0, r1, i) { rotate(-i*18) linear_extrude(1) polygon(concat([for (t = [-9:1.5:9]) r1*[cos(t), sin(t)]], [for (t = [9:-1.5:-9]) r0*[cos(t), sin(t)]])); }
+  color("#151515") cylinder(d = board_d, h = board_t, $fn = 160);
+  translate([0, 0, board_t]) for (i = [0:19]) {
+    dark = i % 2 == 0;
+    color(dark ? "#1c1c1c" : "#efe2c0") { seg(15.9, 99, i); seg(107, 162, i); }
+    color(dark ? "#c8252b" : "#2e8b47") { seg(99, 107, i); seg(162, 170, i); }
+    color("silver") rotate(-i*18 - 9) translate([170 + 2, -.5, 0]) cube([1, 1, 1]);
+    color("white") rotate(-i*18) translate([195, 0, .5]) rotate(-90) linear_extrude(1) text(str(ORDER[i]), size = 17, halign = "center", valign = "center", font = "Liberation Sans:style=Bold");
+  }
+  translate([0, 0, board_t]) { color("#2e8b47") cylinder(r = 15.9, h = 1, $fn = 80); color("#c8252b") cylinder(r = 6.35, h = 1.2, $fn = 60); }
+}
+// the whole board mount on the wall. with_board = false shows what sits behind the board
+module wall_view(with_board = true) {
+  {   // drawn with the board face up (+z) and 12 o'clock along +x; the picture's camera turns it upright
+    color("#f4f1ea") translate([-500, -500, -hub_t - 4.1]) cube([1000, 1000, 4]);   // wall (0.1 mm back so the preview draws it cleanly)
+    color("#8a8f96") winmau_bracket();
+    board_screw();
+    if (with_board) dartboard_look();
+    color("#2b2b2b") hub();
+    for (a = [0, 120, 240]) rotate(a) {
+      color("#2b2b2b") { arm_inner(); arm_outer(); } color("#444") splice();
+      translate([cam_r, 0, b_col_top + fork_above]) rotate(-90) rotate([tilt_preview, 0, 0]) rotate([90, 0, 0]) translate([0, -hinge_y, -hinge_z]) {
+        color("#333") { case_tub(); case_lid(); } light_strips();
+        color("black") { linear_extrude(8) square(holder, center = true); cylinder(d = 14, h = 9.6); }
+      }
+    }
+  }
+}
+// the bracket from the front with its measurements, to check it
+module bracket_drawing() {
+  multmatrix([[0, -1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {   // x (up) -> y on the page
+    color("#8a8f96") translate([0, 0, hub_t]) winmau_bracket();
+    color("silver") translate([0, 0, 2]) cylinder(d = 9, h = 3);                 // screw head where it rests
+  }
+  module dim(p0, p1, label, off) {
+    color("#c8252b") { hull() { translate(p0) cube(.5, center = true); translate(p1) cube(.5, center = true); } }
+    color("black") translate((p0 + p1)/2 + off) linear_extrude(1) text(label, size = 3, halign = "center", valign = "center");
+  }
+  // in page coordinates: page x = across, page y = up; bracket spans x -24..24, y -22..13.5
+  dim([-24, -27, 8], [24, -27, 8], "48 mm wide", [0, -3.5, 0]);
+  dim([30, -22, 8], [30, 13.5, 8], "35.5 mm tall", [12, 0, 0]);
+  dim([-30, -22, 8], [-30, 0, 8], "22 mm", [-9, 0, 0]);
+  color("black") translate([0, 17.5, 8]) linear_extrude(1) text("slot, open at the top", size = 3, halign = "center");
+  color("black") translate([-40, 6, 8]) linear_extrude(1) text("screw head rests here", size = 2.6, halign = "center");
+  color("#c8252b") hull() { translate([-31, 4.5, 8]) cube(.5, center = true); translate([-5, 0, 8]) cube(.5, center = true); }
+}
+
 /* ---------- layouts ---------- */
 module assembly() {
   // wall is the z = 0 plane; the arm sticks straight out along +z
@@ -388,4 +456,7 @@ else if (part == "splice") translate([0, 0, -(arm_z0 + arm_t)]) splice();
 else if (part == "board_assembly") board_assembly();
 else if (part == "print_board") print_board();
 else if (part == "print_all") print_all();
+else if (part == "wall_view") wall_view(true);
+else if (part == "wall_view_noboard") wall_view(false);
+else if (part == "bracket") bracket_drawing();
 else assembly();
