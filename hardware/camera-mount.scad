@@ -1,7 +1,8 @@
 // Oche camera + light mounts for a dartboard (made for a Winmau Diamond Plus; fits any standard 451 mm bristle board)
 // Two ways to hold the cameras:
-//   BOARD MOUNT (no holes in the wall): a hub sits between the back of the board and its Winmau hanging bracket,
-//     held by the board's own centre screw. Three arms bolt into it, reach out behind the board and come forward
+//   BOARD MOUNT (no holes in the wall): a 10 mm hub sits in the gap between the back of the board and the wall, in
+//     place of the board's rubber stabilisers; the board's own screw and wall bracket pass through the opening in its
+//     middle, so the board hangs exactly as before. Three arms bolt into it, lie flat on the wall and come forward
 //     past its edge (through small slots cut in a foam surround) to hold each camera in front of the board.
 //     The cameras move with the board, so calibration stays put.
 //   WALL MOUNT: one arm per camera, screwed to the wall.
@@ -24,8 +25,8 @@
 //   "board_assembly"  the whole board mount put together, for looking at
 //   "print_board"     one hub + one set of arm parts laid out (each also fits the bed on its own)
 //
-// Board mount hardware: the board's centre screw, about 10 mm longer than now; per arm 2 x M4 x 10 countersunk bolts + nuts,
-//   4 x M3 x 10 countersunk bolts + nuts (splice); optional 3 x wood screws 3.5 x 20 to stop the hub turning.
+// Board mount hardware: per arm 2 x M4 x 8 countersunk bolts + nuts (hub), 4 x M3 x 8 countersunk bolts + nuts (splice);
+//   the board's 3 stabiliser nails through the hub into the board's back, to stop the hub turning.
 // Camera: 4 x M2 x 12 countersunk screws per case (through the lid and board, self-tapping into the tub's posts).
 // Wall mount hardware:
 //   1 x M3 x 20 bolt + nut (tilt), 2 x pan-head wood screws ~4 x 30 + washers + wall plugs.
@@ -46,9 +47,14 @@ show_env             = true; // board_assembly preview: show the wall and foam s
 board_d     = 451;   // dartboard diameter (standard bristle boards, Diamond Plus, Blade 6: 451)
 board_t     = 38;    // dartboard thickness, front to back (Diamond Plus, Blade 6: about 38; measure yours)
 cam_r       = 300;   // camera distance from the bull: 300 for the OV9732's own 65 deg lens (sees the doubles ring with ~20 mm spare each side), 260-280 for a 2.1 mm lens
-screw_d     = 6.5;   // hole for the board's centre screw
+// The hub and arms sit in the gap between the back of the board and the wall (hub_t = that gap) and take the place
+// of the board's rubber stabilisers. The board hangs on its own screw and wall bracket exactly as before: both pass
+// through the opening in the middle of the hub. Measure your wall bracket and set these (hub frame: +x is up, 12 o'clock):
+bracket_w     = 56;  // opening width: the bracket's width plus a few mm
+bracket_above = 16;  // opening reaches this far above the screw
+bracket_below = 50;  // and this far below it
 hub_d       = 180;   // hub diameter (Ender 3 bed is 220)
-hub_t       = 10;    // hub thickness: the board sits this much further from the wall
+hub_t       = 10;    // the gap between the back of the board and the wall when it hangs (measure it: 10 on a Winmau bracket)
 arm_w       = 22;    // arm width
 arm_t       = 6;     // arm thickness (sits in grooves in the hub, flush with its wall side)
 split_r     = 165;   // where the two arm halves join
@@ -255,21 +261,28 @@ assert(cam_r - col_d/2 > board_d/2 + 3, "cam_r puts the column into the board: m
 arm_z0 = -hub_t;                                          // arms: wall-side face flush with the hub's
 module m4_cs(){ cylinder(d = 4.5, h = 60, center = true); translate([0, 0, -2.6]) cylinder(d1 = 4.5, d2 = 9, h = 2.61); }   // countersink opening at z = 0
 module m3_cs(){ cylinder(d = 3.4, h = 60, center = true); translate([0, 0, -1.8]) cylinder(d1 = 3.4, d2 = 6.6, h = 1.81); }
+// The wall side of the hub and arms sits flat on the wall, so no bolt may stick out of it. With the kit's
+// M4 x 8 (hub) and M3 x 8 (splice) countersunk bolts the tips stop 2 mm short of the wall side, and the nut
+// pockets are deep enough that each nut sits right at the bolt's tip.
+m4_pocket = hub_t - 8 + 3.3;     // 5.3: M4 nut 3.2 thick
+m3_pocket = hub_t - .4 - 8 + 2.4; // 4.0: M3 nut 2.4 thick
 arm_bolts = [55, 80];                                     // hub-to-arm bolts, distance from the bull
 splice_bolts = [split_r - 16, split_r - 6, split_r + 6, split_r + 16];
 
 module hub() {
   difference() {
     translate([0, 0, -hub_t]) cylinder(d = hub_d, h = hub_t, $fn = 120);
-    cylinder(d = screw_d, h = 60, center = true);                     // the board's centre screw
+    // opening for the board's screw and the wall bracket (the board still hangs on them, not on the hub)
+    hull() for (x = [-bracket_below + 4, bracket_above - 4], y = [-1, 1]) translate([x, y*(bracket_w/2 - 4), 0]) cylinder(r = 4, h = 60, center = true);
     for (a = [0, 120, 240]) rotate(a) {
       translate([40, -(arm_w + 2*clr)/2, -hub_t - 1]) cube([hub_d, arm_w + 2*clr, arm_t + 1]);   // arm groove
       for (x = arm_bolts) translate([x, 0, 0]) m4_cs();             // bolt heads sink into the board side
     }
-    for (a = [60, 180, 300]) rotate(a) {
-      translate([62, 0, 0]) cylinder(d = 26, h = 60, center = true); // lighten
-      translate([28, 0, 0]) { cylinder(d = 3.8, h = 60, center = true);   // optional wood screw into the board's back
-        translate([0, 0, -hub_t - .01]) cylinder(d1 = 7.5, d2 = 3.8, h = 2.2); }
+    // holes for the board's stabiliser nails (or small pins): they stop the hub turning on the back of the board.
+    // Heads sink into the wall side.
+    for (p = [[60, 60], [300, 60], [180, 75]]) rotate(p[0]) translate([p[1], 0, 0]) {
+      cylinder(d = 2.4, h = 60, center = true);
+      translate([0, 0, -hub_t - .01]) cylinder(d = 5.5, h = 1.6);
     }
   }
 }
@@ -284,9 +297,9 @@ module arm_inner() {
     arm_bar(40, split_r);
     for (m = [0, 1]) mirror([0, m, 0]) for (x = arm_inner_clips) arm_clip_tie(x);
     for (x = arm_bolts) translate([x, 0, 0]) cylinder(d = 4.5, h = 60, center = true);
-    nut_pockets(arm_bolts, 7.2, 3.4);
+    nut_pockets(arm_bolts, 7.2, m4_pocket);
     for (x = [splice_bolts[0], splice_bolts[1]]) translate([x, 0, 0]) cylinder(d = 3.4, h = 60, center = true);
-    nut_pockets([splice_bolts[0], splice_bolts[1]], 5.8, 2.6);
+    nut_pockets([splice_bolts[0], splice_bolts[1]], 5.8, m3_pocket);
     tie_slots([112, 135]);
   }
 }
@@ -302,7 +315,7 @@ module arm_outer() {
       hull() { translate([cam_r - col_d/2 - 26, -arm_w/2, arm_z0]) cube([1, arm_w, arm_t]); translate([cam_r - col_d/2 - .01, -col_w/2, arm_z0]) cube([1, col_w, 30]); }
     }
     for (x = [splice_bolts[2], splice_bolts[3]]) translate([x, 0, 0]) cylinder(d = 3.4, h = 60, center = true);
-    nut_pockets([splice_bolts[2], splice_bolts[3]], 5.8, 2.6);
+    nut_pockets([splice_bolts[2], splice_bolts[3]], 5.8, m3_pocket);
     tie_slots([205, 235]);
     for (m = [0, 1]) mirror([0, m, 0]) for (x = arm_outer_clips) arm_clip_tie(x);
   }
@@ -325,7 +338,7 @@ module splice() {
   }
 }
 module board_assembly() {
-  if (show_env) color("gainsboro", .35) translate([0, 0, -hub_t - 14]) cylinder(d = 760, h = 1, $fn = 120);    // wall
+  if (show_env) color("gainsboro", .35) translate([0, 0, -hub_t - 1]) cylinder(d = 760, h = 1, $fn = 120);    // wall
   if (show_env) color("dimgray") difference() { cylinder(d = 700, h = board_t + 4, $fn = 120); translate([0, 0, -1]) cylinder(d = board_d + 1, h = 60, $fn = 120);
     for (a = [0, 120, 240]) rotate(a) translate([cam_r - col_d/2 - 28, -13, -1]) cube([col_d + 32, 26, 60]); }   // foam surround, slots cut for the arms
   color("#1b1b1b") cylinder(d = board_d, h = board_t, $fn = 120);

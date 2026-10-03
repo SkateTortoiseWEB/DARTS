@@ -7,8 +7,10 @@ check the hole spacing (34 mm) when yours arrive.
 
 There are two ways to hold the cameras. Both use the same camera case.
 
-- **Board mount (recommended, no holes in the wall):** a hub sits behind the board, held by the board's own centre
-  screw, with three arms that come forward past the board's edge. The cameras move with the board, so calibration
+- **Board mount (recommended, no extra holes in the wall):** a 10 mm hub sits in the gap behind the board, where
+  its rubber stabilisers were, with three arms that lie flat on the wall and come forward past the board's edge. The
+  board still hangs on its own screw and bracket, which pass through the opening in the hub, so the plastic never
+  carries the board's weight. The cameras move with the board, so calibration
   stays right even if the board shifts on its bracket.
 - **Wall mount:** one arm per camera, screwed to the wall.
 
@@ -20,7 +22,7 @@ There are two ways to hold the cameras. Both use the same camera case.
 
 | File | How many | Printed size | Notes |
 |---|---|---|---|
-| `stl/board-mount/hub.stl` | 1 | 180 × 180 × 10 mm | goes between the board and its bracket |
+| `stl/board-mount/hub.stl` | 1 | 180 × 180 × 10 mm | sits in the gap behind the board; opening in the middle for the bracket |
 | `stl/board-mount/arm_inner.stl` | 3 | 125 × 35 × 6 mm | bolts into the hub; cable cradles on both sides |
 | `stl/board-mount/arm_outer.stl` | 3 | 143 × 35 × 65 mm | column and tilt fork for the camera; cable cradles and clips on both sides |
 | `stl/board-mount/splice.stl` | 3 | 46 × 22 × 4 mm | joins the two arm halves |
@@ -39,42 +41,47 @@ exported. Arms and splice plates 100 % infill, hub and camera cases 40 %.
 
 ### Hardware
 
-Everything except the board's centre screw comes from one **950-piece M2–M5 stainless countersunk (flat-head hex
-socket) bolt kit**:
+Every bolt comes from one **950-piece M2–M5 stainless countersunk (flat-head hex socket) bolt kit**:
 
 | Joint | From the kit | How many |
 |---|---|---|
 | Camera board into case | M2 × 12 (self-tap into the posts, no nuts) | 12 |
-| Hub to arms | M4 × 12 + M4 nuts | 6 + 6 |
-| Splice plates | M3 × 12 + M3 nuts | 12 + 12 |
+| Hub to arms | M4 × 8 + M4 nuts | 6 + 6 |
+| Splice plates | M3 × 8 + M3 nuts | 12 + 12 |
 | Camera tilt hinges | M3 × 20 + M3 nuts | 3 + 3 |
 
-The M4 × 12 and M3 × 12 stick out about 2 mm from the arm's wall side, which is harmless; don't use the 8 mm ones,
-they barely reach the nut. The kit's lock washers aren't needed (the nuts sit in pockets).
+Use the **8 mm** bolts for the hub and splices: the wall side of the hub and arms lies flat on the wall, so nothing may
+stick out of it. The nut pockets are deep enough that each nut sits right at the tip of its 8 mm bolt. The kit's lock
+washers aren't needed.
 
 Not in the kit:
-- The board's centre screw. The hub is 10 mm thick, so it needs to be about 10 mm longer than the one the board came
-  with: the same type and head, from any hardware shop. (If the original is long enough that at least 15 mm still
-  goes into the board with the hub in place, you can reuse it.)
-- About 35 small cable ties (up to 3.6 mm wide) and some foam mounting tape for the stabiliser pads
+- Nothing for the board itself: it keeps its own screw and wall bracket. The three small nails that held its rubber
+  stabilisers go through the hub instead.
+- About 35 small cable ties (up to 3.6 mm wide)
 - Per light: a short piece of 5 V USB COB LED strip, 8 mm wide (see [Light](#light))
 
 ### Fitting it
 
-1. Take the board off the wall and look at the back. **The hub goes between the board and whatever the board hangs by.**
-   Remove the centre screw, put the hub against the board (flat side to the board, grooves facing the wall), put the
-   bracket part back on top and fix it all with the longer screw. If your bracket part is held by several screws
-   rather than one, drill matching holes through the hub.
-2. Bolt the three inner arms into the hub's grooves (bolt heads sink into the board side, nuts in the pockets), then
-   the outer arms to the inner arms with a splice plate across each joint (splice on the board side).
+1. **Measure first:** with the board hanging, the gap between its back and the wall should be 10 mm (it is on a
+   Winmau bracket). If yours differs, set `hub_t` to it. Also check your wall bracket fits the hub's opening
+   (56 mm wide, from 16 mm above the screw to 50 mm below it); if not, set `bracket_w`, `bracket_above`,
+   `bracket_below` and reprint the hub.
+2. Take the board off the wall and pull off its three rubber stabilisers (keep the nails). **Leave the hanging screw
+   exactly as it is.** The hub and arms take the stabilisers' place: they fill the 10 mm gap and rest on the wall.
+3. Bolt the three inner arms into the hub's grooves (M4 × 8: heads sink into the flat side, nuts into the pockets on
+   the grooved side), then the outer arms to the inner arms with a splice plate across each joint (M3 × 8, splice on
+   the flat side).
+4. Lay the hub on the back of the board, flat side to the board, with the screw in the middle of the opening and an
+   arm pointing at 12 o'clock (so the opening's long end is below the screw). Tap the three stabiliser nails through
+   the small holes into the board so the hub can't turn.
 3. **Foam surround:** each column passes through the foam about 300 mm from the bull. Cut a slot about
    50 × 35 mm through the foam for each one (room for the column and its cable clips), and a shallow channel in the
    foam's back for the arm (37 mm wide, 6 mm deep).
-4. Hang the board back up and turn it so the arms point where you want the cameras. Evenly spaced is best:
-   12, 4 and 8 o'clock, or 2, 6 and 10.
-5. Fit the cameras in their cases, stick the lights in their trays and hang each case in its fork with the M3 bolt.
+5. Hang the board back up on its bracket as usual: the bracket goes through the hub's opening. The arms point at
+   12, 4 and 8 o'clock.
+6. Fit the cameras in their cases, stick the lights in their trays and hang each case in its fork with the M3 bolt.
    Then run the cables (see [Cables](#cables)).
-6. In Oche's camera setup, check each camera sees the whole board, then tighten the tilt bolts and calibrate.
+7. In Oche's camera setup, check each camera sees the whole board, then tighten the tilt bolts and calibrate.
 
 ### Measure and adjust
 
@@ -85,7 +92,8 @@ At the top of `camera-mount.scad`:
 - `cam_r` (300): camera distance from the bull. 300 suits the lens the OV9732 comes with (65° across: it sees
   the doubles ring with about 20 mm to spare on each side); with a
   2.1 mm lens (about 85° across) 260-280 gives a sharper view
-- `screw_d` (6.5): the hole for the board's centre screw
+- `hub_t` (10): the gap between the back of the board and the wall
+- `bracket_w`, `bracket_above`, `bracket_below`: the opening for the wall bracket
 
 Export a part with, for example, `openscad -D 'part="hub"' -o stl/board-mount/hub.stl camera-mount.scad`.
 Parts: `hub`, `arm_inner`, `arm_outer`, `splice`, `case_tub`, `case_lid`, `wall_arm`; previews `board_assembly`,
