@@ -16,6 +16,10 @@ There are two ways to hold the cameras. Both use the same camera case.
 
 ## Board mount
 
+**See it in 3D:** open [`viewer.html`](viewer.html) in a browser (it works offline) to turn the whole setup around,
+with or without the dartboard and wall. `stl/assembled-preview.stl` is the same assembled model in one piece, for
+looking at in a slicer (don't print it).
+
 ![on the wall](preview-wall.png)
 ![on the wall without the dartboard: the hub around the Winmau bracket](preview-wall-noboard.png)
 
@@ -113,7 +117,7 @@ Nozzle 240 °C, bed 75 °C, part fan 30-50 % and off for the first 3 layers. Gap
 
 | File | Print | Infill | Notes | Roughly |
 |---|---|---|---|---|
-| `stl/board-mount/hub.stl` | 1 | 40-60 % | outer brim 5 mm, so the edge can't lift | 140 g |
+| `stl/board-mount/hub.stl` | 1 | 40-60 % | flat side down; outer brim 5 mm, so the edge can't lift | 160 g |
 | `stl/board-mount/arm_inner.stl` | 3 | 100 % | | 20 g each |
 | `stl/board-mount/arm_outer.stl` | 3 | 100 % | column upright; a brim helps it stay down | 50 g each |
 | `stl/board-mount/splice.stl` | 3 | 100 % | | 5 g each |

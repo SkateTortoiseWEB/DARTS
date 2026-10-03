@@ -36,6 +36,7 @@
 // Print in PETG or ASA, 4 walls, 40 % infill, no supports needed in the orientations "print_all" uses.
 
 part = "assembly";
+group = "mount";      // with part = "group": which coloured group of the assembled mount to export (for the 3D viewer)
 
 /* ---------- measure these on your setup ---------- */
 board_face_from_wall = 45;   // how far the dartboard's face sits out from the wall (a bristle board is about 38 mm thick, plus the bracket)
@@ -429,6 +430,33 @@ module bracket_drawing() {
   color("#c8252b") hull() { translate([-31, 4.5, 8]) cube(.5, center = true); translate([-5, 0, 8]) cube(.5, center = true); }
 }
 
+// the assembled board mount in coloured groups, for the 3D viewer (tools/../hardware/viewer.html)
+module asm_group(g) {
+  if (g == "mount") { hub(); for (a = [0, 120, 240]) rotate(a) { arm_inner(); arm_outer(); splice(); } }
+  if (g == "bracket") { winmau_bracket(); translate([0, 0, -hub_t + 1.4]) { cylinder(d = 4.5, h = 20); cylinder(d = 9, h = 2.2); } }
+  for (a = [0, 120, 240]) rotate(a) translate([cam_r, 0, b_col_top + fork_above]) rotate(-90) rotate([tilt_preview, 0, 0]) rotate([90, 0, 0]) translate([0, -hinge_y, -hinge_z]) {
+    if (g == "cases") { case_tub(); case_lid(); }
+    if (g == "lens") { linear_extrude(8) square(holder, center = true); cylinder(d = 14, h = 9.6); }
+    if (g == "strips") light_strips();
+  }
+  if (g == "board") cylinder(d = board_d, h = board_t, $fn = 160);
+  if (g == "face_dark" || g == "face_light" || g == "face_red" || g == "face_green" || g == "numbers") board_face_group(g);
+}
+module board_face_group(g) {
+  ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+  module seg(r0, r1, i) { rotate(-i*18) linear_extrude(1) polygon(concat([for (t = [-9:1.5:9]) r1*[cos(t), sin(t)]], [for (t = [9:-1.5:-9]) r0*[cos(t), sin(t)]])); }
+  translate([0, 0, board_t]) {
+    for (i = [0:19]) {
+      dark = i % 2 == 0;
+      if ((g == "face_dark" && dark) || (g == "face_light" && !dark)) { seg(15.9, 99, i); seg(107, 162, i); }
+      if ((g == "face_red" && dark) || (g == "face_green" && !dark)) { seg(99, 107, i); seg(162, 170, i); }
+      if (g == "numbers") rotate(-i*18) translate([195, 0, 0]) rotate(-90) linear_extrude(1.2) text(str(ORDER[i]), size = 17, halign = "center", valign = "center", font = "Liberation Sans:style=Bold");
+    }
+    if (g == "face_green") difference() { cylinder(r = 15.9, h = 1, $fn = 64); translate([0, 0, -1]) cylinder(r = 6.35, h = 3, $fn = 48); }
+    if (g == "face_red") cylinder(r = 6.35, h = 1.2, $fn = 48);
+  }
+}
+
 /* ---------- layouts ---------- */
 module assembly() {
   // wall is the z = 0 plane; the arm sticks straight out along +z
@@ -461,4 +489,5 @@ else if (part == "print_all") print_all();
 else if (part == "wall_view") wall_view(true);
 else if (part == "wall_view_noboard") wall_view(false);
 else if (part == "bracket") bracket_drawing();
+else if (part == "group") asm_group(group);
 else assembly();
