@@ -33,18 +33,31 @@ There are two ways to hold the cameras. Both use the same camera case.
 
 Everything fits an Ender 3 / Ender 3 SE bed (220 × 220 mm) and prints flat as exported, without supports.
 
-**Print settings:** PETG if you can (PLA slowly bends under load, and the cameras mustn't move), 0.2 mm layers, 4 walls,
-40 % infill (100 % for the arms if you like), no supports. For the hub, a brim helps it stay flat.
+**Print settings (Ender 3 SE, PETG):** see [Printing](#printing) for each part's infill and speeds. In short: PETG
+(PLA slowly bends under load, and the cameras mustn't move), 0.2 mm layers, 4 walls, no supports, every part flat as
+exported. Arms and splice plates 100 % infill, hub and camera cases 40 %.
 
 ### Hardware
 
-- The board's centre screw, **about 10 mm longer** than the one it came with (the hub is 10 mm thick)
-- Per arm: 2 × **M4 × 10** countersunk bolts + nuts (hub to arm), 4 × **M3 × 10** countersunk bolts + nuts (splice).
-  Don't go longer: these finish flush with the wall side of the arm, and longer ones would stick out towards the wall
-- Per camera: 4 × **M2 × 12** countersunk screws (board into case; they self-tap into the posts, no nuts), 1 × **M3 × 20** bolt + nut (tilt hinge)
-- Optional: 3 × small wood screws (about 3.5 × 20 mm) through the hub into the back of the board, so the hub can't turn
+Everything except the board's centre screw comes from one **950-piece M2–M5 stainless countersunk (flat-head hex
+socket) bolt kit**:
+
+| Joint | From the kit | How many |
+|---|---|---|
+| Camera board into case | M2 × 12 (self-tap into the posts, no nuts) | 12 |
+| Hub to arms | M4 × 12 + M4 nuts | 6 + 6 |
+| Splice plates | M3 × 12 + M3 nuts | 12 + 12 |
+| Camera tilt hinges | M3 × 20 + M3 nuts | 3 + 3 |
+
+The M4 × 12 and M3 × 12 stick out about 2 mm from the arm's wall side, which is harmless; don't use the 8 mm ones,
+they barely reach the nut. The kit's lock washers aren't needed (the nuts sit in pockets).
+
+Not in the kit:
+- The board's centre screw. The hub is 10 mm thick, so it needs to be about 10 mm longer than the one the board came
+  with: the same type and head, from any hardware shop. (If the original is long enough that at least 15 mm still
+  goes into the board with the hub in place, you can reuse it.)
+- About 35 small cable ties (up to 3.6 mm wide) and some foam mounting tape for the stabiliser pads
 - Per light: a short piece of 5 V USB COB LED strip, 8 mm wide (see [Light](#light))
-- Small cable ties, up to 3.6 mm wide: about 33 (10 per arm for the cables, 1 per light)
 
 ### Fitting it
 
@@ -77,6 +90,27 @@ At the top of `camera-mount.scad`:
 Export a part with, for example, `openscad -D 'part="hub"' -o stl/board-mount/hub.stl camera-mount.scad`.
 Parts: `hub`, `arm_inner`, `arm_outer`, `splice`, `case_tub`, `case_lid`, `wall_arm`; previews `board_assembly`,
 `print_board`, `assembly`, `print_all`.
+
+## Printing
+
+All parts on an Ender 3 SE in PETG (matte black or dark grey is best: shiny or light plastic catches the lights and
+shows up as glare in the other cameras). 0.2 mm layers, 4 walls, no supports, parts flat as exported.
+Nozzle 240 °C, bed 75 °C, part fan 30-50 % and off for the first 3 layers. Gap fill everywhere.
+
+| File | Print | Infill | Notes | Roughly |
+|---|---|---|---|---|
+| `stl/board-mount/hub.stl` | 1 | 40-60 % | outer brim 5 mm, so the edge can't lift | 140 g |
+| `stl/board-mount/arm_inner.stl` | 3 | 100 % | | 20 g each |
+| `stl/board-mount/arm_outer.stl` | 3 | 100 % | column upright; a brim helps it stay down | 50 g each |
+| `stl/board-mount/splice.stl` | 3 | 100 % | | 5 g each |
+| `stl/case_tub.stl` | 3 | 40 % | | 10 g each |
+| `stl/case_lid.stl` | 3 | 40 % | prints face down (the light tray is on the bed side) | 10 g each |
+
+About 450 g in all, so one 1 kg spool. In Creality Print / Orca, switch the process panel to **Objects** to give the
+arms 100 % while the rest of the plate stays at 40 %.
+
+Speeds: first layer 20 mm/s, outer wall 40, inner wall 60, infill 80, top surface 40, gap fill 30 (if your slicer
+shows it), travel 150. Slower than the printer can go, on purpose: PETG's layers bond better.
 
 ## Light
 
