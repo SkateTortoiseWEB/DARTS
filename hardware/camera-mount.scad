@@ -101,14 +101,19 @@ tub_floor_z = -pcb_t - back_gap - wall;   // board front is z = 0, lens points +
 lid_z = front_gap;                    // lid inner face
 
 // tilt hinge: tongue under the case (the side that faces the wall), axis along x
-tongue_t = 6;
+// The fork on the arm has a 6.6 mm gap with 0.9 mm teeth on both inner faces, so 4.8 mm between the tooth tips.
+// The case's tab is a plain 4.6 mm plate that slides in between them; tightening the hinge bolt presses the teeth
+// into the tab, which holds the tilt. (An earlier tab also had teeth and was 7.8 mm thick, so it couldn't fit.)
+tooth_h = 0.9;
+fork_gap_printed = 6.6;
+tongue_t = fork_gap_printed - 2*tooth_h - 0.2;   // 4.6
 tongue_len = 15;
 hinge_y = -(outer/2 + tongue_len - 5);        // hole centre, relative to the lens axis
 hinge_z = (tub_floor_z + lid_z)/2;
 
 // arm
 plate_t = 6;
-fork_gap = tongue_t + 0.6;
+fork_gap = fork_gap_printed;
 fork_w = 5;
 col_w = fork_gap + 2*fork_w; col_d = 16;
 fork_above = 9;            // hole centre above the column top
@@ -153,7 +158,6 @@ module case_tub() {
   for (x = [-1, 1], y = [-1, 1]) translate([x*hole_sp/2, y*hole_sp/2, tub_floor_z + wall - 0.01])
     difference() { cylinder(d = 4.4, h = back_gap + 0.01); cylinder(d = screw_pilot, h = 50); }
   // teeth on both faces of the tongue
-  for (s = [-1, 1]) translate([s*tongue_t/2, hinge_y, hinge_z]) rotate([0, s*90, 0]) rosette(2.2, 5.8);
   // cable tie anchor under the cable exit (strain relief)
   translate([outer/2 + 2.5, 0, tub_floor_z + 1.5]) difference() {
     cube([6, 16, 3], center = true);

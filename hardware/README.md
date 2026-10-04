@@ -198,5 +198,6 @@ parts above, plus 2 pan-head wood screws with washers and wall plugs.
 2. Lid on, 4 × M2 × 12 countersunk screws through the lid and board into the posts. Snug, not tight: they cut
    their own thread in the plastic.
 3. Stick the LED strip in the lid's light tray (see [Light](#light)).
-4. Hang the case in the fork with the M3 bolt; the teeth hold the tilt once it's tight.
+4. Slide the tab on the bottom of the case between the fork's prongs and put the M3 × 20 bolt through; tightened,
+   the teeth inside the fork bite into the tab and hold the tilt.
 5. Cable-tie the camera cable to the anchor under the case's cable slot.
